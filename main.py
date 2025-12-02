@@ -113,4 +113,5 @@ def interactive_chat():
 
 
 if __name__ == "__main__":
+    # print(client.get_memory_prompt(user_name))
     interactive_chat()
