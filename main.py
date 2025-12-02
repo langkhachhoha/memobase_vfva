@@ -109,7 +109,7 @@ def interactive_chat():
         print("-" * 30)
         print(client.get_memory_prompt(user_name))
         print("=" * 50)
-        print("✅ Tạm biệt!")
+        print("Tạm biệt!")
 
 
 if __name__ == "__main__":
