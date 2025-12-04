@@ -40,6 +40,10 @@ mb_client = MemoBaseClient(
     api_key="secret",
 )
 
+from memobase.utils import string_to_uuid
+print(mb_client.get_or_create_user(string_to_uuid(USER_NAME)).profile(need_json=True))
+
+
 # 3. Patch OpenAI client with memory capability
 client = openai_memory(client, mb_client, max_context_size=1000)
 
