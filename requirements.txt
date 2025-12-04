@@ -1,4 +1,8 @@
 pydantic
 httpx
 openai
-memobase
+fastapi
+uvicorn[standard]
+pyngrok
+python-dotenv
+requests
