@@ -65,7 +65,7 @@ app.add_middleware(
 # Pydantic models
 class ChatMessage(BaseModel):
     message: str
-    user_id: str = "demo_user"
+    user_id: str = "langkhachhoha"
 
 class ChatResponse(BaseModel):
     response: str
@@ -105,13 +105,30 @@ HTML_CONTENT = """
             padding: 20px;
         }
         
+        .main-layout {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1400px;
+            height: 90vh;
+        }
+        
         .container {
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 100%;
-            max-width: 800px;
-            height: 90vh;
+            flex: 1;
+            min-width: 600px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .profile-panel {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 400px;
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -298,18 +315,171 @@ HTML_CONTENT = """
             padding: 8px 15px;
             font-size: 13px;
         }
+        
+        /* Profile Panel Styles */
+        .profile-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 20px 20px 0 0;
+        }
+        
+        .profile-header h2 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+        
+        .profile-header p {
+            font-size: 13px;
+            opacity: 0.9;
+        }
+        
+        .profile-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .profile-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        
+        .profile-empty-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        
+        .profile-section {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .profile-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .profile-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .profile-item:last-child {
+            border-bottom: none;
+        }
+        
+        .profile-label {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 4px;
+        }
+        
+        .profile-value {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .profile-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin: 4px 4px 4px 0;
+        }
+        
+        .profile-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .profile-list li {
+            padding: 6px 0;
+            font-size: 14px;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .profile-list li:before {
+            content: "•";
+            color: #667eea;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .profile-refresh {
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .profile-refresh button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        
+        .profile-refresh button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .profile-loading {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+        }
+        
+        @media (max-width: 1200px) {
+            .main-layout {
+                flex-direction: column;
+                height: auto;
+            }
+            
+            .profile-panel {
+                width: 100%;
+                max-height: 400px;
+            }
+            
+            .container {
+                min-width: auto;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="main-layout">
+        <div class="container">
         <div class="header">
             <h1>🤖 Memobase Chat Demo</h1>
             <p>Interactive chat with long-term memory • Buffer Size: 5 messages</p>
             <div class="user-info">
-                <input type="text" id="userId" placeholder="Enter your user ID" value="demo_user">
+                <input type="text" id="userId" placeholder="Enter your user ID" value="langkhachhoha">
                 <div class="action-buttons">
                     <button onclick="viewMemory()">📚 View Memory</button>
                     <button onclick="flushMemory()">💾 Flush Memory</button>
+                    <button onclick="refreshProfile()">👤 Refresh Profile</button>
                 </div>
             </div>
         </div>
@@ -331,8 +501,37 @@ HTML_CONTENT = """
         </div>
     </div>
     
+    <!-- Profile Panel -->
+    <div class="profile-panel">
+        <div class="profile-header">
+            <h2>👤 User Profile</h2>
+            <p>Real-time profile information</p>
+        </div>
+        
+        <div class="profile-content" id="profileContent">
+            <div class="profile-empty">
+                <div class="profile-empty-icon">📋</div>
+                <p>No profile data yet</p>
+                <p style="font-size: 12px; margin-top: 8px;">Start chatting to build your profile</p>
+            </div>
+        </div>
+        
+        <div class="profile-refresh">
+            <button onclick="refreshProfile()">🔄 Refresh Profile</button>
+        </div>
+    </div>
+</div>
+    
     <script>
         let isLoading = false;
+        let profileRefreshInterval = null;
+        
+        // Start auto-refresh on load
+        window.addEventListener('load', () => {
+            refreshProfile();
+            // Auto-refresh every 10 seconds
+            profileRefreshInterval = setInterval(refreshProfile, 10000);
+        });
         
         function addMessage(role, content, isSystem = false) {
             const chatContainer = document.getElementById('chatContainer');
@@ -361,7 +560,7 @@ HTML_CONTENT = """
             if (isLoading) return;
             
             const input = document.getElementById('messageInput');
-            const userId = document.getElementById('userId').value.trim() || 'demo_user';
+            const userId = document.getElementById('userId').value.trim() || 'langkhachhoha';
             const message = input.value.trim();
             
             if (!message) return;
@@ -413,7 +612,7 @@ HTML_CONTENT = """
         }
         
         async function viewMemory() {
-            const userId = document.getElementById('userId').value.trim() || 'demo_user';
+            const userId = document.getElementById('userId').value.trim() || 'langkhachhoha';
             
             try {
                 const response = await fetch(`/memory/${userId}`);
@@ -431,7 +630,7 @@ HTML_CONTENT = """
         }
         
         async function flushMemory() {
-            const userId = document.getElementById('userId').value.trim() || 'demo_user';
+            const userId = document.getElementById('userId').value.trim() || 'langkhachhoha';
             
             try {
                 const response = await fetch(`/flush/${userId}`, {
@@ -453,6 +652,238 @@ HTML_CONTENT = """
             if (event.key === 'Enter' && !isLoading) {
                 sendMessage();
             }
+        }
+        
+        async function refreshProfile() {
+            const userId = document.getElementById('userId').value.trim() || 'langkhachhoha';
+            const profileContent = document.getElementById('profileContent');
+            
+            try {
+                // Fetch both profile and memory
+                const [profileRes, memoryRes] = await Promise.all([
+                    fetch(`/profile/${userId}`),
+                    fetch(`/memory/${userId}`)
+                ]);
+                
+                if (!profileRes.ok && !memoryRes.ok) {
+                    throw new Error('Failed to fetch profile');
+                }
+                
+                let parsedProfile = {};
+                
+                // Try to get memory first (more structured)
+                if (memoryRes.ok) {
+                    const memoryData = await memoryRes.json();
+                    if (memoryData.memory) {
+                        parsedProfile = parseMemoryToProfile(memoryData.memory);
+                    }
+                }
+                
+                // Fallback to profile API if memory is empty
+                if (Object.keys(parsedProfile).length === 0 && profileRes.ok) {
+                    const profileData = await profileRes.json();
+                    parsedProfile = profileData.profile || {};
+                }
+                
+                displayProfile(parsedProfile);
+                
+            } catch (error) {
+                console.error('Error fetching profile:', error);
+                profileContent.innerHTML = `
+                    <div class="profile-empty">
+                        <div class="profile-empty-icon">❌</div>
+                        <p>Failed to load profile</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function parseMemoryToProfile(memoryText) {
+            if (!memoryText) return {};
+            
+            const profile = {};
+            
+            // Extract User Current Profile section
+            const profileMatch = memoryText.match(/## User Current Profile:([\s\S]*?)(?=##|---|\n\n$|$)/);
+            if (!profileMatch) return {};
+            
+            const profileSection = profileMatch[1];
+            
+            // Parse each line with format: - category::field: content [mention date]
+            const lines = profileSection.split('\n').filter(line => line.trim().startsWith('-'));
+            
+            lines.forEach(line => {
+                // Match pattern: - category::field: content [mention date]
+                const match = line.match(/- ([^:]+)::([^:]+):\s*(.+?)(?:\s*\[mention[^\]]*\])?$/);
+                if (match) {
+                    const [, category, field, content] = match;
+                    const categoryKey = category.trim();
+                    const fieldKey = field.trim();
+                    const value = content.trim();
+                    
+                    // Initialize category if not exists
+                    if (!profile[categoryKey]) {
+                        profile[categoryKey] = {};
+                    }
+                    
+                    // Add or append to field
+                    if (profile[categoryKey][fieldKey]) {
+                        // If field already exists, make it an array
+                        if (!Array.isArray(profile[categoryKey][fieldKey])) {
+                            profile[categoryKey][fieldKey] = [profile[categoryKey][fieldKey]];
+                        }
+                        profile[categoryKey][fieldKey].push(value);
+                    } else {
+                        profile[categoryKey][fieldKey] = value;
+                    }
+                }
+            });
+            
+            return profile;
+        }
+        
+        function displayProfile(profile) {
+            const profileContent = document.getElementById('profileContent');
+            
+            // Check if profile is empty
+            if (!profile || Object.keys(profile).length === 0) {
+                profileContent.innerHTML = `
+                    <div class="profile-empty">
+                        <div class="profile-empty-icon">📋</div>
+                        <p>No profile data yet</p>
+                        <p style="font-size: 12px; margin-top: 8px;">Start chatting to build your profile</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            // Category icons mapping
+            const categoryIcons = {
+                'psychological': '🧠',
+                'work': '💼',
+                'interest': '⭐',
+                'contact_info': '📧',
+                'basic_info': '👤',
+                'education': '🎓',
+                'skill': '🛠️',
+                'hobby': '🎨',
+                'goal': '🎯',
+                'experience': '📚'
+            };
+            
+            // Render each profile section
+            for (const [key, value] of Object.entries(profile)) {
+                if (!value || (Array.isArray(value) && value.length === 0)) continue;
+                
+                const icon = categoryIcons[key.toLowerCase()] || '📌';
+                html += `<div class="profile-section">`;
+                html += `<div class="profile-section-title">${icon} ${formatKey(key)}</div>`;
+                
+                if (Array.isArray(value)) {
+                    // Render as list
+                    html += `<ul class="profile-list">`;
+                    value.forEach(item => {
+                        if (typeof item === 'object') {
+                            html += `<li>${JSON.stringify(item)}</li>`;
+                        } else {
+                            const itemStr = String(item);
+                            // Split by semicolon for multi-line content
+                            if (itemStr.includes(';')) {
+                                const parts = itemStr.split(';').map(p => p.trim()).filter(p => p);
+                                parts.forEach(part => {
+                                    html += `<li style="font-size: 13px;">${escapeHtml(part)}</li>`;
+                                });
+                            } else {
+                                html += `<li>${escapeHtml(itemStr)}</li>`;
+                            }
+                        }
+                    });
+                    html += `</ul>`;
+                } else if (typeof value === 'object') {
+                    // Render nested object
+                    for (const [subKey, subValue] of Object.entries(value)) {
+                        html += `<div class="profile-item">`;
+                        html += `<div class="profile-label">${formatKey(subKey)}</div>`;
+                        
+                        if (Array.isArray(subValue)) {
+                            // Multiple values - render as list
+                            html += `<ul class="profile-list" style="margin-top: 5px;">`;
+                            subValue.forEach(item => {
+                                const itemStr = String(item);
+                                if (itemStr.includes(';')) {
+                                    const parts = itemStr.split(';').map(p => p.trim()).filter(p => p);
+                                    parts.forEach(part => {
+                                        html += `<li style="font-size: 13px;">${escapeHtml(part)}</li>`;
+                                    });
+                                } else {
+                                    html += `<li>${escapeHtml(itemStr)}</li>`;
+                                }
+                            });
+                            html += `</ul>`;
+                        } else {
+                            // Single value
+                            const valueStr = String(subValue);
+                            if (valueStr.includes(';')) {
+                                // Multi-line content
+                                const parts = valueStr.split(';').map(p => p.trim()).filter(p => p);
+                                html += `<ul class="profile-list" style="margin-top: 5px;">`;
+                                parts.forEach(part => {
+                                    html += `<li style="font-size: 13px;">${escapeHtml(part)}</li>`;
+                                });
+                                html += `</ul>`;
+                            } else {
+                                html += `<div class="profile-value">${escapeHtml(valueStr)}</div>`;
+                            }
+                        }
+                        html += `</div>`;
+                    }
+                } else {
+                    // Render simple value
+                    const valueStr = String(value);
+                    if (valueStr.includes(';')) {
+                        const parts = valueStr.split(';').map(p => p.trim()).filter(p => p);
+                        html += `<ul class="profile-list">`;
+                        parts.forEach(part => {
+                            html += `<li style="font-size: 13px;">${escapeHtml(part)}</li>`;
+                        });
+                        html += `</ul>`;
+                    } else {
+                        html += `<div class="profile-value">${escapeHtml(valueStr)}</div>`;
+                    }
+                }
+                
+                html += `</div>`;
+            }
+            
+            if (html === '') {
+                profileContent.innerHTML = `
+                    <div class="profile-empty">
+                        <div class="profile-empty-icon">📋</div>
+                        <p>No profile data yet</p>
+                    </div>
+                `;
+            } else {
+                profileContent.innerHTML = html;
+            }
+        }
+        
+        function formatKey(key) {
+            // Convert snake_case or camelCase to Title Case
+            return key
+                .replace(/_/g, ' ')
+                .replace(/([A-Z])/g, ' $1')
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ')
+                .trim();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
         
         // Focus input on load
