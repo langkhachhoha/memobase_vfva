@@ -44,7 +44,7 @@ docker-compose build && docker-compose up
 ```bash
 python main.py
 ```
-Thay tên trong user_name để có thể dùng lại trong lần sau (lưu lịch sử)
+
 
 
 
