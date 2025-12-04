@@ -52,7 +52,7 @@ def main():
     # Start FastAPI
     print(f"{CYAN}[3/3] Starting FastAPI server...{END}", end=" ", flush=True)
     server = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+        [sys.executable, "-m", "uvicorn", "app_simple:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True
@@ -98,4 +98,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -557,13 +557,21 @@ HTML_CONTENT = """
         }
         
         async function sendMessage() {
-            if (isLoading) return;
+            console.log('sendMessage called');
+            if (isLoading) {
+                console.log('Already loading, returning');
+                return;
+            }
             
             const input = document.getElementById('messageInput');
             const userId = document.getElementById('userId').value.trim() || 'langkhachhoha';
             const message = input.value.trim();
             
-            if (!message) return;
+            console.log('Message:', message);
+            if (!message) {
+                console.log('Empty message, returning');
+                return;
+            }
             
             // Add user message
             addMessage('user', message);
