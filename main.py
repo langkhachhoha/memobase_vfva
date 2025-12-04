@@ -1,11 +1,15 @@
 """Read the docs of how this patch works: https://docs.memobase.io/features/openai"""
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent / "src" / "client"))
+
 from memobase import MemoBaseClient
 from openai import OpenAI
 from memobase.patch.openai import openai_memory
 from time import sleep
 import os
-from dotenv import load_dotenv  # Thêm dòng này
+from dotenv import load_dotenv
 
 load_dotenv()  # Load biến từ file .env
 
@@ -113,5 +117,4 @@ def interactive_chat():
 
 
 if __name__ == "__main__":
-    # print(client.get_memory_prompt(user_name))
     interactive_chat()
