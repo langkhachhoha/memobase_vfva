@@ -39,12 +39,13 @@ cd src/server
 docker-compose build && docker-compose up
 ```
 
-### 5. Chạy main.py
+### 5. Chạy demo local
 
 ```bash
-python main.py
+python run_local.py
 ```
 
+Access at: http://localhost:8000
 
 
 
