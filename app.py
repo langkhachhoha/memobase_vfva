@@ -582,6 +582,17 @@ HTML_CONTENT = """
             document.getElementById('sendButton').disabled = true;
             document.getElementById('sendButton').textContent = 'Thinking...';
             
+            // Create assistant message container for streaming
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message assistant';
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = '';
+            messageDiv.appendChild(contentDiv);
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
             try {
                 const response = await fetch('/chat', {
                     method: 'POST',
@@ -598,18 +609,46 @@ HTML_CONTENT = """
                     throw new Error('Failed to get response');
                 }
                 
-                const data = await response.json();
+                // Read streaming response
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
                 
-                // Add assistant message
-                addMessage('assistant', data.response);
-                
-                // Show auto-flush message if it happened
-                if (data.auto_flushed) {
-                    addMessage('', `💾 Memory auto-saved! (Total turns: ${data.conversation_count})`, true);
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.slice(6));
+                            
+                            if (data.type === 'content') {
+                                // Append content to message
+                                contentDiv.textContent += data.content;
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            } else if (data.type === 'done') {
+                                // Show auto-flush message if it happened
+                                if (data.auto_flushed) {
+                                    addMessage('', `💾 Memory auto-saved! (Total turns: ${data.conversation_count})`, true);
+                                }
+                            } else if (data.type === 'error') {
+                                throw new Error(data.error);
+                            }
+                        }
+                    }
                 }
                 
             } catch (error) {
                 console.error('Error:', error);
+                // Remove the empty message if error occurred
+                if (contentDiv.textContent === '') {
+                    messageDiv.remove();
+                }
                 addMessage('', '❌ Error: Failed to get response', true);
             } finally {
                 isLoading = false;
@@ -906,9 +945,9 @@ async def root():
     """Serve the chat interface"""
     return HTML_CONTENT
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat")
 async def chat(message: ChatMessage):
-    """Handle chat messages with memory"""
+    """Handle chat messages with memory - streaming response"""
     user_id = message.user_id
     
     # Initialize user conversation history if not exists
@@ -928,38 +967,55 @@ async def chat(message: ChatMessage):
     if len(user_conversations[user_id]) > BUFFER_SIZE * 2:
         user_conversations[user_id] = user_conversations[user_id][-(BUFFER_SIZE * 2):]
     
-    try:
-        # Get response from OpenAI with memory
-        response = openai_client.chat.completions.create(
-            messages=user_conversations[user_id],
-            model=MODEL,
-            stream=False,
-            user_id=user_id,
-        )
-        
-        assistant_message = response.choices[0].message.content
-        
-        # Add assistant response to conversation history
-        user_conversations[user_id].append({"role": "assistant", "content": assistant_message})
-        
-        # Increment conversation count
-        user_conversation_counts[user_id] += 1
-        
-        # Auto-flush after every BUFFER_SIZE turns
-        auto_flushed = False
-        if user_conversation_counts[user_id] % BUFFER_SIZE == 0:
-            await asyncio.sleep(0.1)
-            openai_client.flush(user_id)
-            auto_flushed = True
-        
-        return ChatResponse(
-            response=assistant_message,
-            conversation_count=user_conversation_counts[user_id],
-            auto_flushed=auto_flushed
-        )
+    async def generate_stream():
+        """Generator function for streaming response"""
+        try:
+            # Get streaming response from OpenAI with memory
+            stream = openai_client.chat.completions.create(
+                messages=user_conversations[user_id],
+                model=MODEL,
+                stream=True,
+                user_id=user_id,
+            )
+            
+            assistant_message = ""
+            
+            # Stream each chunk
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    assistant_message += content
+                    # Send chunk as JSON
+                    yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
+            
+            # Add assistant response to conversation history
+            user_conversations[user_id].append({"role": "assistant", "content": assistant_message})
+            
+            # Increment conversation count
+            user_conversation_counts[user_id] += 1
+            
+            # Auto-flush after every BUFFER_SIZE turns
+            auto_flushed = False
+            if user_conversation_counts[user_id] % BUFFER_SIZE == 0:
+                await asyncio.sleep(0.1)
+                openai_client.flush(user_id)
+                auto_flushed = True
+            
+            # Send completion message with metadata
+            yield f"data: {json.dumps({'type': 'done', 'conversation_count': user_conversation_counts[user_id], 'auto_flushed': auto_flushed})}\n\n"
+            
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
     
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 @app.get("/memory/{user_id}", response_model=MemoryResponse)
 async def get_memory(user_id: str):
