@@ -24,7 +24,7 @@ load_dotenv()
 
 # Configuration
 STREAM = True
-USER_NAME = "langkhachhoha"
+USER_NAME = "haminhhieu"
 BUFFER_SIZE = 5  
 MODEL = "gpt-4o-mini"
 
@@ -41,7 +41,7 @@ mb_client = MemoBaseClient(
 )
 
 from memobase.utils import string_to_uuid
-u = mb_client.get_or_create_user(string_to_uuid(USER_NAME)).profile(need_json=True)
+u = mb_client.get_or_create_user(string_to_uuid(USER_NAME))
 
 
 # 3. Patch OpenAI client with memory capability
@@ -171,9 +171,27 @@ def show_memory():
 # ============================================
 
 if __name__ == "__main__":
-    chat_interactive()
+    # chat_interactive()
+    from rich import print as rprint
+    from rich.pretty import pprint as rpprint
+    from memobase.core.blob import BlobType
+    # users = mb_client.get_all_users(search="", order_by="updated_at", order_desc=True, limit=10, offset=0)
+    # rprint(users)
+    # print("-" * 50)
+    # blobs = u.get_all(BlobType.chat)
+    # rpprint(blobs)
+    # print("-" * 50)
+    # events = u.event(topk=1, max_token_size=100000)
+    # rpprint(events)
+    # print("-" * 50)
+    # rprint(u.context())
+    # print("-" * 50)
+    # events = u.search_event('My occupation',topk = 1)
+    # print(events)
+    # print("-" * 50)
+    contextual_profile = u.profile(
+    chats=[{"role": "user", "content": "Find some dating place for me"}],
+    need_json=True,
+)
 
-
-
-
-
+    rpprint(contextual_profile)
