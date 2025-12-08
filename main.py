@@ -102,7 +102,7 @@ def chat_interactive():
         
         # Keep only last BUFFER_SIZE messages (sliding window)
         if len(conversation_history) > BUFFER_SIZE * 2:  # *2 because user+assistant pairs
-            conversation_history = conversation_history[-(BUFFER_SIZE * 2):]
+            conversation_history = conversation_history[1:]
         
         # Create chat completion with conversation history
         try:
@@ -186,9 +186,9 @@ if __name__ == "__main__":
     # print("-" * 50)
     # rprint(u.context())
     # print("-" * 50)
-    # events = u.search_event('My occupation',topk = 1)
-    # print(events)
-    # print("-" * 50)
+    events = u.search_event('My occupation',topk = 1)
+    print(events)
+    print("-" * 50)
     contextual_profile = u.profile(
     chats=[{"role": "user", "content": "Find some dating place for me"}],
     need_json=True,

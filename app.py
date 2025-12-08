@@ -965,7 +965,7 @@ async def chat(message: ChatMessage):
     
     # Keep only last BUFFER_SIZE * 2 messages (sliding window)
     if len(user_conversations[user_id]) > BUFFER_SIZE * 2:
-        user_conversations[user_id] = user_conversations[user_id][-(BUFFER_SIZE * 2):]
+        user_conversations[user_id] = user_conversations[user_id][1:]
     
     async def generate_stream():
         """Generator function for streaming response"""
