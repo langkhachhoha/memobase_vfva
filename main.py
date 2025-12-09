@@ -5,11 +5,13 @@ Read the docs: https://docs.memobase.io/practices/openai
 Features:
 - Interactive chat loop (type 'exit' to quit)
 - Buffer size = 5 messages (short-term context)
-- Auto-flush after every 5 conversation turns
+- Auto-flush at 1024 tokens (handled by MemoBase)
+- Manual flush only on exit (to catch remaining data)
 - Long-term memory with Memobase
 """
 
 import sys
+import signal
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src" / "client"))
 
@@ -52,11 +54,35 @@ conversation_history = []
 conversation_count = 0
 
 
+def graceful_exit():
+    """Flush and exit gracefully"""
+    print("\n💾 Saving remaining conversations...")
+    sleep(0.1)
+    try:
+        client.flush(USER_NAME)
+        print("✅ Memory saved!")
+    except Exception as e:
+        print(f"⚠️  Warning: Failed to flush: {e}")
+    print("👋 Goodbye!")
+
+
+def signal_handler(sig, frame):
+    """Handle Ctrl+C gracefully"""
+    graceful_exit()
+    sys.exit(0)
+
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
+
 def chat_interactive():
     """
     Interactive chat with buffer-based short-term memory.
     Keeps last BUFFER_SIZE messages as context.
-    Auto-flushes to long-term memory every BUFFER_SIZE turns.
+    Relies on auto-flush (1024 tokens) for processing.
+    Manual flush only on exit to catch remaining data.
     """
     global conversation_history, conversation_count
     
@@ -65,7 +91,8 @@ def chat_interactive():
     print("="*60)
     print(f"📝 Buffer Size: {BUFFER_SIZE} messages")
     print(f"👤 User: {USER_NAME}")
-    print(f"💡 Commands: 'exit' to quit, '/memory' to view memory, '/flush' to save")
+    print(f"💡 Commands: 'exit' to quit, '/memory' to view memory")
+    print(f"🔄 Auto-flush: Every 1024 tokens or 1 hour")
     print("="*60 + "\n")
     
     while True:
@@ -73,7 +100,7 @@ def chat_interactive():
         try:
             user_input = input("You: ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\n\n👋 Goodbye!")
+            graceful_exit()
             break
         
         if not user_input:
@@ -81,20 +108,11 @@ def chat_interactive():
         
         # Handle commands
         if user_input.lower() == 'exit':
-            print("\n💾 Saving remaining conversations...")
-            if conversation_history:
-                sleep(0.1)
-                client.flush(USER_NAME)
-                print("✅ Memory saved!")
-            print("👋 Goodbye!")
+            graceful_exit()
             break
         
         if user_input.lower() == '/memory':
             show_memory()
-            continue
-        
-        if user_input.lower() == '/flush':
-            manual_flush()
             continue
         
         # Add user message to buffer
@@ -130,27 +148,10 @@ def chat_interactive():
             
             # Add assistant response to buffer
             conversation_history.append({"role": "assistant", "content": assistant_message})
-            
-            # Increment conversation count
             conversation_count += 1
-            
-            # Auto-flush after every BUFFER_SIZE turns
-            if conversation_count % BUFFER_SIZE == 0:
-                print(f"💾 [Auto-flush] {BUFFER_SIZE} turns completed. Saving to long-term memory...")
-                sleep(0.1)
-                client.flush(USER_NAME)
-                print(f"✅ Memory saved! (Total turns: {conversation_count})\n")
         
         except Exception as e:
             print(f"❌ Error: {e}\n")
-
-
-def manual_flush():
-    """Manually flush memory buffer"""
-    print("\n💾 Flushing memory...")
-    sleep(0.1)
-    client.flush(USER_NAME)
-    print("✅ Memory flushed successfully!\n")
 
 
 def show_memory():
@@ -171,30 +172,4 @@ def show_memory():
 # ============================================
 
 if __name__ == "__main__":
-    # chat_interactive()
-    from rich import print as rprint
-    from rich.pretty import pprint as rpprint
-    from memobase.core.blob import BlobType
-    # users = mb_client.get_all_users(search="", order_by="updated_at", order_desc=True, limit=10, offset=0)
-    # rprint(users)
-    # print("-" * 50)
-    # blobs = u.get_all(BlobType.chat)
-    # rpprint(blobs)
-    # print("-" * 50)
-    # events = u.event(topk=1, max_token_size=100000)
-    # rpprint(events)
-    # print("-" * 50)
-    # rprint(u.context())
-    # print("-" * 50)
-    # events = u.search_event('My occupation',topk = 3)
-    # print(events)
-#     print("-" * 50)
-#     contextual_profile = u.profile(
-#     chats=[{"role": "user", "content": "Find some dating place for me"}],
-#     need_json=True,
-# )
-
-#     rpprint(contextual_profile)
-    print(u.context(
-        max_token_size=100000,
-    ))
+    chat_interactive()

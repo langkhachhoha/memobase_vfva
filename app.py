@@ -1,6 +1,11 @@
 """
 FastAPI Demo Application for Memobase + OpenAI Memory
 Provides a web interface for the interactive chat with memory functionality
+
+Features:
+- Auto-flush at 1024 tokens (handled by MemoBase)
+- Manual flush via button or on session end
+- Real-time profile updates
 """
 
 import sys
@@ -473,12 +478,12 @@ HTML_CONTENT = """
         <div class="container">
         <div class="header">
             <h1>🤖 Memobase Chat Demo</h1>
-            <p>Interactive chat with long-term memory • Buffer Size: 5 messages</p>
+            <p>Interactive chat with long-term memory • Auto-flush: 1024 tokens or 1 hour</p>
             <div class="user-info">
                 <input type="text" id="userId" placeholder="Enter your user ID" value="langkhachhoha">
                 <div class="action-buttons">
                     <button onclick="viewMemory()">📚 View Memory</button>
-                    <button onclick="flushMemory()">💾 Flush Memory</button>
+                    <button onclick="flushMemory()">💾 Manual Flush</button>
                     <button onclick="refreshProfile()">👤 Refresh Profile</button>
                 </div>
             </div>
@@ -486,7 +491,7 @@ HTML_CONTENT = """
         
         <div class="chat-container" id="chatContainer">
             <div class="system-message">
-                👋 Welcome! Start chatting to see memory in action. Memory auto-saves every 5 turns.
+                👋 Welcome! Start chatting to see memory in action. Memory auto-saves at 1024 tokens or 1 hour.
             </div>
         </div>
         
@@ -994,15 +999,9 @@ async def chat(message: ChatMessage):
             # Increment conversation count
             user_conversation_counts[user_id] += 1
             
-            # Auto-flush after every BUFFER_SIZE turns
-            auto_flushed = False
-            if user_conversation_counts[user_id] % BUFFER_SIZE == 0:
-                await asyncio.sleep(0.1)
-                openai_client.flush(user_id)
-                auto_flushed = True
-            
             # Send completion message with metadata
-            yield f"data: {json.dumps({'type': 'done', 'conversation_count': user_conversation_counts[user_id], 'auto_flushed': auto_flushed})}\n\n"
+            # Note: Auto-flush happens automatically at 1024 tokens or 1 hour (handled by MemoBase)
+            yield f"data: {json.dumps({'type': 'done', 'conversation_count': user_conversation_counts[user_id], 'auto_flushed': False})}\n\n"
             
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
@@ -1048,11 +1047,21 @@ async def get_user_profile(user_id: str):
 
 @app.delete("/conversation/{user_id}")
 async def clear_conversation(user_id: str):
-    """Clear conversation history for a user"""
-    if user_id in user_conversations:
-        user_conversations[user_id] = []
-        user_conversation_counts[user_id] = 0
-    return {"status": "success", "message": "Conversation cleared"}
+    """Clear conversation history for a user and flush remaining data"""
+    try:
+        # Flush any remaining data before clearing
+        if user_id in user_conversations and len(user_conversations[user_id]) > 0:
+            await asyncio.sleep(0.1)
+            openai_client.flush(user_id)
+        
+        # Clear local conversation history
+        if user_id in user_conversations:
+            user_conversations[user_id] = []
+            user_conversation_counts[user_id] = 0
+        
+        return {"status": "success", "message": "Conversation cleared and memory flushed"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear conversation: {str(e)}")
 
 @app.get("/health")
 async def health_check():
