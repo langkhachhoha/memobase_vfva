@@ -24,7 +24,7 @@ load_dotenv()
 
 # Configuration
 STREAM = True
-USER_NAME = "haminhhieu"
+USER_NAME = "langkhachhoha"
 BUFFER_SIZE = 5  
 MODEL = "gpt-4o-mini"
 
@@ -186,12 +186,15 @@ if __name__ == "__main__":
     # print("-" * 50)
     # rprint(u.context())
     # print("-" * 50)
-    events = u.search_event('My occupation',topk = 1)
-    print(events)
-    print("-" * 50)
-    contextual_profile = u.profile(
-    chats=[{"role": "user", "content": "Find some dating place for me"}],
-    need_json=True,
-)
+    # events = u.search_event('My occupation',topk = 3)
+    # print(events)
+#     print("-" * 50)
+#     contextual_profile = u.profile(
+#     chats=[{"role": "user", "content": "Find some dating place for me"}],
+#     need_json=True,
+# )
 
-    rpprint(contextual_profile)
+#     rpprint(contextual_profile)
+    print(u.context(
+        max_token_size=100000,
+    ))
