@@ -172,4 +172,31 @@ def show_memory():
 # ============================================
 
 if __name__ == "__main__":
-    chat_interactive()
+    from rich import print as rprint
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def search_event_profile(query: str = None):
+        chats = [{"role": "user", "content": query}]
+
+        # Chạy song song
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            search_future = executor.submit(u.search_event, query=query)
+            profile_future = executor.submit(u.profile, chats=chats)
+            
+            search_result = search_future.result()
+            profile_result = profile_future.result()
+
+        # Xử lý profile: topic::sub_topic::content
+        profile_string = "\n".join([
+            f"{p.topic}::{p.sub_topic}::{p.content}" 
+            for p in profile_result
+        ])
+        
+        # Nối event + profile với separator
+        combined_result = f"## Events\n{search_result}\n\n## Profile\n{profile_string}"
+        
+        return combined_result
+
+    query = "My occupation is a software engineer"
+    result = search_event_profile(query)
+    rprint(result)

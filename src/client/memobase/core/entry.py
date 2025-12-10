@@ -294,8 +294,9 @@ class User:
                 f"/users/event/search/{self.user_id}{params}"
             )
         )
-        print(r.data)
-        return [UserEventData.model_validate(e) for e in r.data['gists']]
+        # print(r.data)
+        return "\n".join([e['gist_data']['content'] for e in r.data['gists'] if 'gist_data' in e and 'content' in e['gist_data']])
+        # return [UserEventData.model_validate(e) for e in r.data['gists']]
 
     def search_event_gist(
         self,

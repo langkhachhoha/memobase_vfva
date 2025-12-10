@@ -58,7 +58,9 @@ def _get_memory_prompt(
     def get_memory(u_string) -> list[UserProfile]:
         uid = string_to_uuid(u_string)
         u = mb_client.get_user(uid, no_get=True)
-        context = u.context(max_token_size=max_context_size)
+        context = u.context(max_token_size=max_context_size,
+                            prefer_topics=['work', 'basic_info', 'interests'],
+                            profile_event_ratio = 1)
         sys_prompt = PROMPT.format(
             user_context=context, additional_memory_prompt=additional_memory_prompt
         )
@@ -86,7 +88,9 @@ def add_message_to_user(messages: ChatBlob, user: User):
 def user_context_insert(
     messages, u: User, additional_memory_prompt: str, max_context_size: int
 ):
-    context = u.context(max_token_size=max_context_size)
+    context = u.context(max_token_size=max_context_size,
+                        prefer_topics=['work', 'basic_info', 'interests'],
+                        profile_event_ratio = 1)
     if not len(context):
         return messages
     sys_prompt = PROMPT.format(
