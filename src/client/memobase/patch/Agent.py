@@ -53,10 +53,12 @@ class MemobaseAgent:
         model: str = "gpt-4o-mini",
         max_profile_tokens: int = 1000,
         temperature: float = 0.7,
+        max_history_messages: int = 5,
     ):
         self.mb_client = mb_client
         self.max_profile_tokens = max_profile_tokens
         self.model = model
+        self.max_history_messages = max_history_messages
         
         # Initialize LLM
         self.llm = ChatOpenAI(
@@ -194,7 +196,6 @@ class MemobaseAgent:
         
         # Format messages
         messages = self._format_messages_for_llm(user, history, message)
-        
         try:
             # Get response from LLM
             response = llm_with_tools.invoke(messages)
@@ -232,6 +233,10 @@ class MemobaseAgent:
             # Add to history
             history.add_user_message(message)
             history.add_ai_message(ai_response)
+            
+            # Limit history to last N messages
+            if len(history.messages) > 2*self.max_history_messages:
+                history.messages = history.messages[2:]
             
             # Save to MemoBase in background
             self._save_conversation_to_memobase(user, message, ai_response)
@@ -271,6 +276,10 @@ class MemobaseAgent:
             # Add to history
             history.add_user_message(message)
             history.add_ai_message(full_response)
+            
+            # Limit history to last N messages
+            if len(history.messages) > 2*self.max_history_messages:
+                history.messages = history.messages[2:]
             
             # Save to MemoBase in background
             self._save_conversation_to_memobase(user, message, full_response)
@@ -346,6 +355,7 @@ def create_memobase_agent(
     model: str = "gpt-4o-mini",
     max_profile_tokens: int = 1000,
     temperature: float = 0.7,
+    max_history_messages: int = 5,
 ) -> MemobaseAgent:
     """
     Factory function to create a MemobaseAgent
@@ -357,6 +367,7 @@ def create_memobase_agent(
         model: Model name
         max_profile_tokens: Maximum tokens for profile context
         temperature: LLM temperature
+        max_history_messages: Maximum number of messages to keep in short-term memory (default: 5)
         
     Returns:
         MemobaseAgent instance
@@ -368,4 +379,5 @@ def create_memobase_agent(
         model=model,
         max_profile_tokens=max_profile_tokens,
         temperature=temperature,
+        max_history_messages=max_history_messages,
     )
