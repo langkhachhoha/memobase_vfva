@@ -171,7 +171,8 @@ def show_memory():
 # Main Entry Point
 # ============================================
 
-if __name__ == "__main__":
+def demo_search_event_profile():
+    """Demo function for search_event_profile"""
     from rich import print as rprint
     from concurrent.futures import ThreadPoolExecutor
     
@@ -200,3 +201,142 @@ if __name__ == "__main__":
     query = "My occupation is a software engineer"
     result = search_event_profile(query)
     rprint(result)
+
+
+def demo_agent_interactive():
+    """Interactive demo with LangChain Agent"""
+    from memobase.patch.Agent import create_memobase_agent
+    
+    print("\n" + "="*60)
+    print("🤖 LANGCHAIN AGENT WITH MEMOBASE MEMORY")
+    print("="*60)
+    print(f"👤 User: {USER_NAME}")
+    print(f"🧠 Model: {MODEL}")
+    print(f"💡 Commands: 'exit' to quit, '/memory' to view profile, '/flush' to save")
+    print(f"🔧 Tool: search_event_profile (auto-used when needed)")
+    print("="*60 + "\n")
+    
+    # Create agent
+    agent = create_memobase_agent(
+        mb_client=mb_client,
+        llm_api_key=os.getenv('llm_api_key'),
+        llm_base_url="https://api.openai.com/v1/",
+        model=MODEL,
+        max_profile_tokens=1000,
+        temperature=0.7,
+    )
+    
+    while True:
+        try:
+            user_input = input("You: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n💾 Saving remaining conversations...")
+            agent.flush(USER_NAME)
+            print("✅ Memory saved!")
+            print("👋 Goodbye!")
+            break
+        
+        if not user_input:
+            continue
+        
+        # Handle commands
+        if user_input.lower() == 'exit':
+            print("\n💾 Saving remaining conversations...")
+            agent.flush(USER_NAME)
+            print("✅ Memory saved!")
+            print("👋 Goodbye!")
+            break
+        
+        if user_input.lower() == '/memory':
+            print("\n" + "="*60)
+            print("📚 CURRENT PROFILE")
+            print("="*60)
+            profile = agent.get_profile(USER_NAME)
+            print(profile)
+            print("="*60 + "\n")
+            continue
+        
+        if user_input.lower() == '/flush':
+            print("💾 Flushing buffer...")
+            agent.flush(USER_NAME)
+            agent.refresh_profile(USER_NAME)
+            print("✅ Buffer flushed and profile refreshed!")
+            continue
+        
+        # Get response from agent
+        print("AI: ", end="", flush=True)
+        
+        if STREAM:
+            # Stream response
+            for chunk in agent.chat_stream(USER_NAME, user_input):
+                print(chunk, end="", flush=True)
+            print("\n")
+        else:
+            # Non-streaming response
+            response = agent.chat(USER_NAME, user_input)
+            print(response + "\n")
+
+
+def demo_agent_single_query():
+    """Demo single query with agent"""
+    from memobase.patch.Agent import create_memobase_agent
+    
+    print("\n" + "="*60)
+    print("🤖 SINGLE QUERY DEMO")
+    print("="*60 + "\n")
+    
+    # Create agent
+    agent = create_memobase_agent(
+        mb_client=mb_client,
+        llm_api_key=os.getenv('llm_api_key'),
+        llm_base_url="https://api.openai.com/v1/",
+        model=MODEL,
+        max_profile_tokens=1000,
+    )
+    
+    # Test queries
+    queries = [
+        "What do you know about me?",
+        "What's my occupation?",
+        "Tell me about my work experience",
+    ]
+    
+    for query in queries:
+        print(f"User: {query}")
+        response = agent.chat(USER_NAME, query)
+        print(f"AI: {response}\n")
+    
+    # Flush at the end
+    print("💾 Flushing buffer...")
+    agent.flush(USER_NAME)
+    print("✅ Done!")
+
+
+if __name__ == "__main__":
+    import sys
+    
+    # Choose demo mode
+    if len(sys.argv) > 1:
+        mode = sys.argv[1]
+    else:
+        print("\n" + "="*60)
+        print("🎯 SELECT DEMO MODE")
+        print("="*60)
+        print("1. Interactive Chat (original OpenAI)")
+        print("2. Interactive Agent (LangChain with tools)")
+        print("3. Single Query Demo (Agent)")
+        print("4. Search Event Profile Demo")
+        print("="*60)
+        mode = input("\nEnter mode (1-4): ").strip()
+    
+    if mode == "1":
+        chat_interactive()
+    elif mode == "2":
+        demo_agent_interactive()
+    elif mode == "3":
+        demo_agent_single_query()
+    elif mode == "4":
+        demo_search_event_profile()
+    else:
+        print("❌ Invalid mode. Using default: Interactive Agent")
+        demo_agent_interactive()
