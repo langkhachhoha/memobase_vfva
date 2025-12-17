@@ -22,6 +22,8 @@ from memobase.patch.config import (
 from concurrent.futures import ThreadPoolExecutor
 from rich import print as rprint
 import time
+import base64
+from pathlib import Path
 
 load_dotenv()
 
@@ -213,6 +215,15 @@ st.markdown("""
 MODEL = "gpt-4o-mini"
 BUFFER_SIZE = 5
 
+# PDF Configuration
+PDF_DIRECTORY = "/Users/apple/VSF/pageindex/document"
+PDF_FILES = {
+    "doc1.pdf": "VinFast VF8 User Manual",
+    "doc2.pdf": "VinFast VF9 User Manual", 
+    "doc3.pdf": "VinFast Safety Guide",
+    "doc4.pdf": "VinFast Maintenance Guide"
+}
+
 # Initialize clients
 @st.cache_resource
 def init_clients():
@@ -285,9 +296,48 @@ def get_mode_info(mode):
             "icon": "👤",
             "badge": "mode-agent",
             "tools": "search_event_profile"
+        },
+        "6": {
+            "name": "PDF Viewer",
+            "description": "View VinFast documentation PDFs",
+            "icon": "📄",
+            "badge": "mode-agent",
+            "tools": "None"
         }
     }
     return modes.get(mode, modes["1"])
+
+def display_pdf(pdf_path):
+    """Display PDF file in Streamlit"""
+    try:
+        with open(pdf_path, "rb") as f:
+            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+        
+        pdf_display = f'''
+        <iframe src="data:application/pdf;base64,{base64_pdf}" 
+                width="100%" 
+                height="800" 
+                type="application/pdf"
+                style="border: none; border-radius: 10px;">
+        </iframe>
+        '''
+        st.markdown(pdf_display, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"❌ Error loading PDF: {str(e)}")
+
+def get_available_pdfs():
+    """Get list of available PDF files"""
+    pdf_dir = Path(PDF_DIRECTORY)
+    if not pdf_dir.exists():
+        return []
+    
+    available_pdfs = []
+    for pdf_file, title in PDF_FILES.items():
+        pdf_path = pdf_dir / pdf_file
+        if pdf_path.exists():
+            available_pdfs.append((pdf_file, title, str(pdf_path)))
+    
+    return available_pdfs
 
 def create_agent_for_mode(mode, user_id):
     """Create agent based on mode"""
@@ -363,7 +413,7 @@ with st.sidebar:
     
     mode = st.radio(
         "Select demo mode:",
-        ["1", "2", "3", "4", "5"],
+        ["1", "2", "3", "4", "5", "6"],
         format_func=lambda x: f"{get_mode_info(x)['icon']} {get_mode_info(x)['name']}",
         key="mode_selector"
     )
@@ -454,7 +504,30 @@ with col2:
 st.markdown("---")
 
 # Special handling for mode 5 and 6
-if st.session_state.mode == "5":
+if st.session_state.mode == "6":
+    # PDF Viewer Mode
+    st.markdown("### 📄 VinFast Documentation PDFs")
+    
+    # Get available PDFs
+    available_pdfs = get_available_pdfs()
+    
+    if not available_pdfs:
+        st.warning("⚠️ No PDF files found in the specified directory.")
+        st.info(f"📁 Looking for PDFs in: `{PDF_DIRECTORY}`")
+    else:
+        # Create tabs for different PDFs
+        tab_names = [title for _, title, _ in available_pdfs]
+        tabs = st.tabs(tab_names)
+        
+        for i, (pdf_file, title, pdf_path) in enumerate(available_pdfs):
+            with tabs[i]:
+                st.markdown(f"#### 📖 {title}")
+                st.caption(f"File: {pdf_file}")
+                
+                # Display PDF
+                display_pdf(pdf_path)
+
+elif st.session_state.mode == "5":
     # Profile Search Demo
     st.markdown("### 👤 Search Event Profile Demo")
     
