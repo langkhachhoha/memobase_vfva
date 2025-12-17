@@ -203,28 +203,68 @@ def demo_search_event_profile():
     rprint(result)
 
 
-def demo_agent_interactive():
-    """Interactive demo with LangChain Agent"""
+def demo_agent_interactive(rag_mode=None):
+    """Interactive demo with LangChain Agent
+    
+    Args:
+        rag_mode: None, "semantic", or "reasoning"
+    """
     from memobase.patch.Agent import create_memobase_agent
+    from memobase.patch.config import (
+        QDRANT_URL, QDRANT_API_KEY, COLLECTION_NAME,
+        PAGEINDEX_API_KEY
+    )
     
     print("\n" + "="*60)
     print("🤖 LANGCHAIN AGENT WITH MEMOBASE MEMORY")
     print("="*60)
     print(f"👤 User: {USER_NAME}")
     print(f"🧠 Model: {MODEL}")
+    
+    if rag_mode == "semantic":
+        print(f"🔍 RAG Mode: Semantic Search (Qdrant)")
+    elif rag_mode == "reasoning":
+        print(f"🧠 RAG Mode: Logical Reasoning (PageIndex)")
+    else:
+        print(f"💭 RAG Mode: None")
+    
     print(f"💡 Commands: 'exit' to quit, '/memory' to view profile, '/flush' to save")
-    print(f"🔧 Tool: search_event_profile (auto-used when needed)")
+    print(f"🔧 Tools: search_event_profile" + (", semantic_search" if rag_mode == "semantic" else ", reasoning_search" if rag_mode == "reasoning" else ""))
     print("="*60 + "\n")
     
-    # Create agent
-    agent = create_memobase_agent(
-        mb_client=mb_client,
-        llm_api_key=os.getenv('llm_api_key'),
-        llm_base_url="https://api.openai.com/v1/",
-        model=MODEL,
-        max_profile_tokens=1000,
-        temperature=0.7,
-    )
+    # Create agent with RAG configuration
+    agent_kwargs = {
+        "mb_client": mb_client,
+        "llm_api_key": os.getenv('llm_api_key'),
+        "llm_base_url": "https://api.openai.com/v1/",
+        "model": MODEL,
+        "max_profile_tokens": 1000,
+        "temperature": 0.7,
+    }
+    
+    # Add RAG-specific configurations
+    if rag_mode == "semantic":
+        agent_kwargs.update({
+            "rag_mode": "semantic",
+            "qdrant_url": QDRANT_URL,
+            "qdrant_api_key": QDRANT_API_KEY,
+            "qdrant_collection_name": COLLECTION_NAME,
+        })
+    elif rag_mode == "reasoning":
+        # PageIndex document IDs
+        doc_ids = [
+            "pi-cmj8en8v103mw0dqx5nz1p9a2",
+            "pi-cmj8enxzm03no0dqx054d1y93",
+            "pi-cmj8eoruv03on0dqxxok4cf88",
+            "pi-cmj8eplpc03p90dqxwrv0qpqe"
+        ]
+        agent_kwargs.update({
+            "rag_mode": "reasoning",
+            "pageindex_api_key": PAGEINDEX_API_KEY,
+            "pageindex_doc_ids": doc_ids,
+        })
+    
+    agent = create_memobase_agent(**agent_kwargs)
     
     while True:
         try:
@@ -267,13 +307,13 @@ def demo_agent_interactive():
         print("AI: ", end="", flush=True)
         
         if STREAM:
-            # Stream response
-            for chunk in agent.chat_stream(USER_NAME, user_input):
+            # Stream response with verbose output
+            for chunk in agent.chat_stream(USER_NAME, user_input, verbose=True):
                 print(chunk, end="", flush=True)
             print("\n")
         else:
-            # Non-streaming response
-            response = agent.chat(USER_NAME, user_input)
+            # Non-streaming response with verbose output
+            response = agent.chat(USER_NAME, user_input, verbose=True)
             print(response + "\n")
 
 
@@ -323,20 +363,26 @@ if __name__ == "__main__":
         print("🎯 SELECT DEMO MODE")
         print("="*60)
         print("1. Interactive Chat (original OpenAI)")
-        print("2. Interactive Agent (LangChain with tools)")
-        print("3. Single Query Demo (Agent)")
-        print("4. Search Event Profile Demo")
+        print("2. Interactive Agent (LangChain, no RAG)")
+        print("3. Interactive Agent (Option 1: Semantic Search - Qdrant)")
+        print("4. Interactive Agent (Option 2: Logical Reasoning - PageIndex)")
+        print("5. Single Query Demo (Agent)")
+        print("6. Search Event Profile Demo")
         print("="*60)
-        mode = input("\nEnter mode (1-4): ").strip()
+        mode = input("\nEnter mode (1-6): ").strip()
     
     if mode == "1":
         chat_interactive()
     elif mode == "2":
-        demo_agent_interactive()
+        demo_agent_interactive(rag_mode=None)
     elif mode == "3":
-        demo_agent_single_query()
+        demo_agent_interactive(rag_mode="semantic")
     elif mode == "4":
+        demo_agent_interactive(rag_mode="reasoning")
+    elif mode == "5":
+        demo_agent_single_query()
+    elif mode == "6":
         demo_search_event_profile()
     else:
-        print("❌ Invalid mode. Using default: Interactive Agent")
-        demo_agent_interactive()
+        print("❌ Invalid mode. Using default: Interactive Agent (no RAG)")
+        demo_agent_interactive(rag_mode=None)

@@ -47,5 +47,51 @@ python run_local.py
 
 Access at: http://localhost:8000
 
+### 6. Chạy Agent với RAG
+
+Agent hỗ trợ 2 phương pháp RAG:
+- **Option 1 (Semantic Search)**: Tìm kiếm dựa trên semantic similarity sử dụng Qdrant
+- **Option 2 (Logical Reasoning)**: Tìm kiếm dựa trên logical reasoning sử dụng PageIndex
+
+```bash
+python main.py
+```
+
+Chọn mode:
+- **Mode 1**: Interactive Chat (original OpenAI)
+- **Mode 2**: Interactive Agent (không dùng RAG)
+- **Mode 3**: Interactive Agent với Semantic Search (Qdrant)
+- **Mode 4**: Interactive Agent với Logical Reasoning (PageIndex)
+- **Mode 5**: Single Query Demo
+- **Mode 6**: Search Event Profile Demo
+
+#### Cấu hình RAG
+
+Cấu hình RAG trong `src/client/memobase/patch/config.py`:
+
+```python
+# Semantic Search (Qdrant)
+QDRANT_URL = "your_qdrant_url"
+QDRANT_API_KEY = "your_qdrant_api_key"
+COLLECTION_NAME = "vsf"
+
+# Logical Reasoning (PageIndex)
+PAGEINDEX_API_KEY = "your_pageindex_api_key"
+```
+
+#### Sự khác biệt giữa 2 phương pháp
+
+**Semantic Search (Option 1)**:
+- Input: Thông tin cần tìm kiếm (có thể là câu hỏi hoặc mô tả)
+- Phương pháp: Vector similarity search
+- Tốc độ: Nhanh
+- Phù hợp: Tìm kiếm thông tin dựa trên ý nghĩa ngữ nghĩa
+
+**Logical Reasoning (Option 2)**:
+- Input: **BẮT BUỘC** phải là câu hỏi trực tiếp
+- Phương pháp: Tree-based reasoning với LLM
+- Tốc độ: Chậm hơn (do có bước reasoning)
+- Phù hợp: Câu hỏi phức tạp cần suy luận logic
+
 
 

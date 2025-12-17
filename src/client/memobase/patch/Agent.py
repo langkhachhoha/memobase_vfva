@@ -4,7 +4,8 @@ Similar to openai.py but using LangChain framework with tools and memory
 """
 
 import threading
-from typing import Optional, List, Dict, Any
+import json
+from typing import Optional, List, Dict, Any, Literal
 from concurrent.futures import ThreadPoolExecutor
 
 from langchain_openai import ChatOpenAI
@@ -17,21 +18,137 @@ from ..core.entry import MemoBaseClient, User, ChatBlob
 from ..utils import string_to_uuid, LOG
 from ..error import ServerError
 
+# Import RAG dependencies
+try:
+    from qdrant_client import QdrantClient
+    from openai import OpenAI
+    QDRANT_AVAILABLE = True
+except ImportError:
+    QDRANT_AVAILABLE = False
+    LOG.warning("Qdrant client not available. Semantic search will not work.")
 
-SYSTEM_PROMPT_TEMPLATE = """You are a helpful AI assistant with access to personalized memory about the user.
+try:
+    from pageindex import PageIndexClient
+    PAGEINDEX_AVAILABLE = True
+except ImportError:
+    PAGEINDEX_AVAILABLE = False
+    LOG.warning("PageIndex client not available. Logical reasoning will not work.")
+
+
+SYSTEM_PROMPT = """You are ViVi, the intelligent, empathetic, and proactive AI companion for VinFast vehicle owners.
+
+# INPUT CONTEXT
+User Profile: {user_profile}
+
+# YOUR CORE MISSION
+1.  **Personalized Companion:** Use the User Profile to tailor your tone, recommendations, and context. If the user prefers concise answers, be concise. If they are a new driver, be more explanatory.
+2.  **Safety First:** Always prioritize driver safety. For critical mechanical issues, advise checking the manual or contacting a service center.
+
+# TOOL USAGE STRATEGY & DECISION LOGIC
+
+You have access to specific tools, use them wisely:
+
+1. **search_event_profile**: Search user's conversation history and personal profile
+   - Use when: You need context about the user's past conversations or personal information
+
+
+# Guidelines
+- Be friendly, helpful, and speak Vietnamese naturally
+- Use the user's profile to personalize your responses
+- For personal context: Use search_event_profile
+- If you already have enough information, respond directly without using tools
+- Don't explicitly mention tool names to users unless necessary
+- Always prioritize user safety - emphasize reading the manual for critical operations
+
+
+# FINAL INSTRUCTION
+You are now ViVi. Respond to the user's input based on the logic above.
+"""
+
+SYSTEM_PROMPT_SEMANTIC = """You are ViVi, the intelligent, empathetic, and proactive AI companion for VinFast vehicle owners.
+
+# INPUT CONTEXT
+User Profile: {user_profile}
+
+# YOUR CORE MISSION
+1.  **Personalized Companion:** Use the User Profile to tailor your tone, recommendations, and context. If the user prefers concise answers, be concise. If they are a new driver, be more explanatory.
+2.  **VinFast Expert:** Provide accurate technical assistance regarding VinFast vehicles using the provided documentation tools.
+3.  **Safety First:** Always prioritize driver safety. For critical mechanical issues, advise checking the manual or contacting a service center.
+
+# TOOL USAGE STRATEGY & DECISION LOGIC
+
+You have access to specific tools, use them wisely:
+
+1. **search_event_profile**: Search user's conversation history and personal profile
+   - Use when: You need context about the user's past conversations or personal information
+
+2. **semantic_search**: Search VinFast documentation using semantic similarity (vector search)
+   - Use when: User asks about vehicle features, functions, or specifications
+   - Best for: Finding information by meaning, keywords, or concepts
+   - Input: MUST be a complete, direct question from the user
+
+
+# Guidelines
+- Be friendly, helpful, and speak Vietnamese naturally
+- Use the user's profile to personalize your responses
+- For vehicle feature questions: Use semantic_search to find relevant documentation
+- For personal context: Use search_event_profile
+- If you already have enough information, respond directly without using tools
+- Don't explicitly mention tool names to users unless necessary
+- Always prioritize user safety - emphasize reading the manual for critical operations
+
+
+# FINAL INSTRUCTION
+You are now ViVi. Respond to the user's input based on the logic above.
+"""
+
+
+
+
+SYSTEM_PROMPT_REASONING = """You are ViVi, an intelligent AI assistant for VinFast vehicles with personalized memory about each user.
 
 # User Profile
 {user_profile}
 
-# Instructions
-- Use the user's profile information to provide personalized responses
-- You have access to a search_event_profile tool that can search for additional context
-- Only use the tool when you need information that is not in the current profile
-- The tool searches for relevant historical events and additional profile details
-- Be natural and conversational, don't explicitly mention using tools unless relevant
-- If the current profile has enough information to answer, respond directly without using tools
+# Your Role
+You help VinFast car owners by:
+1. Providing personalized responses based on their profile and preferences
+2. Answering questions about VinFast vehicle features and functions
+3. Searching VinFast documentation using logical reasoning
+4. Remembering user interactions and preferences
 
-Remember: The tool is for searching additional context when needed, not for every query."""
+# Available Tools
+You have access to these tools - use them wisely:
+
+1. **search_event_profile**: Search user's conversation history and personal profile
+   - Use when: You need context about the user's past conversations or personal information
+   - Example: User asks "What did I ask you yesterday?" or questions about their preferences
+
+2. **reasoning_search**: Search VinFast documentation using logical reasoning (tree-based search)
+   - Use when: User asks complex questions that require step-by-step reasoning or multi-hop thinking
+   - Best for: "How-to", "When", "Why", "What happens if" questions
+   - Input: MUST be a complete, direct question from the user
+   - Examples:
+     * "Khi nào không nên sử dụng hệ thống ACC?" - when NOT to use ACC
+     * "Làm thế nào để bật chế độ lái tự động?" - how to activate autopilot
+     * "Tại sao hệ thống cảnh báo khi tôi chuyển làn?" - why lane warning activates
+     * "Điều gì xảy ra nếu tôi không thắt dây an toàn?" - what happens without seatbelt
+   - Note: The reasoning system will think through the question step by step to find the answer
+
+# Guidelines
+- Be friendly, helpful, and speak Vietnamese naturally
+- Use the user's profile to personalize your responses
+- For vehicle feature questions: Use reasoning_search for complex questions requiring logical thinking
+- The reasoning search works best with direct questions (not statements or keywords)
+- Transform user statements into questions if needed before searching
+- For personal context: Use search_event_profile
+- If you already have enough information, respond directly without using tools
+- Don't explicitly mention tool names to users unless necessary
+- Always prioritize user safety - emphasize reading the manual for critical operations
+
+# FINAL INSTRUCTION
+You are now ViVi. Respond to the user's input based on the logic above.
+"""
 
 
 class MemobaseAgent:
@@ -41,6 +158,7 @@ class MemobaseAgent:
     Features:
     - Automatic profile injection into system prompt
     - search_event_profile tool for dynamic memory retrieval
+    - RAG tools: semantic similarity search (Qdrant) or logical reasoning (PageIndex)
     - Conversation history tracking
     - Auto-save conversations to MemoBase
     """
@@ -54,11 +172,21 @@ class MemobaseAgent:
         max_profile_tokens: int = 1000,
         temperature: float = 0.7,
         max_history_messages: int = 5,
+        # RAG configuration
+        rag_mode: Optional[Literal["semantic", "reasoning"]] = None,
+        # Semantic search config
+        qdrant_url: Optional[str] = None,
+        qdrant_api_key: Optional[str] = None,
+        qdrant_collection_name: Optional[str] = None,
+        # Reasoning search config
+        pageindex_api_key: Optional[str] = None,
+        pageindex_doc_ids: Optional[List[str]] = None,
     ):
         self.mb_client = mb_client
         self.max_profile_tokens = max_profile_tokens
         self.model = model
         self.max_history_messages = max_history_messages
+        self.rag_mode = rag_mode
         
         # Initialize LLM
         self.llm = ChatOpenAI(
@@ -72,6 +200,32 @@ class MemobaseAgent:
         self._user_histories: Dict[str, InMemoryChatMessageHistory] = {}
         self._user_objects: Dict[str, User] = {}
         self._user_llms: Dict[str, ChatOpenAI] = {}
+        
+        # RAG configuration
+        self.qdrant_client = None
+        self.openai_client = None
+        self.qdrant_collection_name = qdrant_collection_name
+        self.pageindex_client = None
+        self.pageindex_doc_ids = pageindex_doc_ids
+        
+        # Initialize RAG clients based on mode
+        if rag_mode == "semantic" and QDRANT_AVAILABLE:
+            if not all([qdrant_url, qdrant_api_key, qdrant_collection_name]):
+                raise ValueError("Semantic mode requires qdrant_url, qdrant_api_key, and qdrant_collection_name")
+            # Remove port if present
+            qdrant_url = qdrant_url.replace(":6333", "") if ":6333" in qdrant_url else qdrant_url
+            self.qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+            self.openai_client = OpenAI(api_key=llm_api_key)
+            LOG.info("Initialized Qdrant client for semantic search")
+            
+        elif rag_mode == "reasoning" and PAGEINDEX_AVAILABLE:
+            if not pageindex_api_key:
+                raise ValueError("Reasoning mode requires pageindex_api_key")
+            self.pageindex_client = PageIndexClient(api_key=pageindex_api_key)
+            LOG.info("Initialized PageIndex client for logical reasoning")
+            
+        elif rag_mode:
+            LOG.warning(f"RAG mode '{rag_mode}' requested but dependencies not available")
         
     def _create_search_tool_for_user(self, user: User):
         """Create search_event_profile tool function for a specific user"""
@@ -117,6 +271,106 @@ class MemobaseAgent:
         
         return search_event_profile
     
+    def _create_semantic_search_tool(self):
+        """Create semantic similarity search tool using Qdrant"""
+        
+        @tool
+        def semantic_search(query: str) -> str:
+            """
+            Search for information using semantic similarity (vector search).
+            Use this when you need to find information based on meaning and context.
+            
+            Args:
+                query: The information you want to search for
+                
+            Returns:
+                Relevant information found in the knowledge base
+            """
+            try:
+                if not self.qdrant_client or not self.openai_client:
+                    return "Semantic search not available - Qdrant client not initialized"
+                
+                LOG.info(f"🔍 Semantic search: {query}")
+                
+                # Create embedding for query
+                response = self.openai_client.embeddings.create(
+                    input=query,
+                    model="text-embedding-3-small"
+                )
+                query_embedding = response.data[0].embedding
+                
+                # Search in Qdrant
+                hits = self.qdrant_client.search(
+                    collection_name=self.qdrant_collection_name,
+                    query_vector=("default", query_embedding),
+                    limit=3
+                )
+                
+                # Format results
+                results = []
+                for i, hit in enumerate(hits, 1):
+                    doc_name = hit.payload.get('doc_name', 'N/A')
+                    title_path = hit.payload.get('title_path', 'N/A')
+                    page = hit.payload.get('page_index', 'N/A')
+                    text = hit.payload.get('text', 'N/A')
+                    score = hit.score
+                    
+                    results.append(
+                        f"Result {i} (Score: {score:.3f}):\n"
+                        f"Document: {doc_name}\n"
+                        f"Section: {title_path}\n"
+                        f"Page: {page}\n"
+                        f"Content: {text}\n"
+                    )
+                
+                LOG.info(f"✅ Found {len(hits)} results")
+                return "\n---\n".join(results) if results else "No relevant information found"
+                
+            except Exception as e:
+                LOG.error(f"Error in semantic_search tool: {e}")
+                return f"Error performing semantic search: {str(e)}"
+        
+        return semantic_search
+    
+    def _create_reasoning_search_tool(self):
+        """Create logical reasoning search tool using PageIndex"""
+        
+        @tool
+        def reasoning_search(question: str) -> str:
+            """
+            Search for information using logical reasoning (tree-based search).
+            Use this when you have a direct question that requires step-by-step reasoning.
+            IMPORTANT: The input MUST be a direct question from the user (not a statement or description).
+            
+            Args:
+                question: A direct question from the user (e.g., "When should I not use ACC?")
+                
+            Returns:
+                Answer found through logical reasoning process
+            """
+            try:
+                if not self.pageindex_client:
+                    return "Reasoning search not available - PageIndex client not initialized"
+                
+                LOG.info(f"🧠 Reasoning search: {question}")
+                
+                # Use PageIndex chat completions for reasoning-based retrieval
+                response = self.pageindex_client.chat_completions(
+                    messages=[{"role": "user", "content": question}],
+                    doc_id=self.pageindex_doc_ids
+                )
+                
+                answer = response["choices"][0]["message"]["content"]
+                
+                LOG.info(f"✅ Reasoning complete")
+                return answer
+                
+            except Exception as e:
+                LOG.error(f"Error in reasoning_search tool: {e}")
+                return f"Error performing reasoning search: {str(e)}"
+        
+        return reasoning_search
+    
     def _get_user_profile_context(self, user: User) -> str:
         """Get user profile context for system prompt"""
         try:
@@ -141,8 +395,23 @@ class MemobaseAgent:
             self._user_histories[user_id] = InMemoryChatMessageHistory()
             
             # Create LLM with tools bound
+            tools = []
+            
+            # Add memory search tool
             search_tool = self._create_search_tool_for_user(user)
-            llm_with_tools = self.llm.bind_tools([search_tool])
+            tools.append(search_tool)
+            
+            # Add RAG tool based on mode
+            if self.rag_mode == "semantic":
+                semantic_tool = self._create_semantic_search_tool()
+                tools.append(semantic_tool)
+                LOG.info(f"Added semantic search tool for user {user_id}")
+            elif self.rag_mode == "reasoning":
+                reasoning_tool = self._create_reasoning_search_tool()
+                tools.append(reasoning_tool)
+                LOG.info(f"Added reasoning search tool for user {user_id}")
+            
+            llm_with_tools = self.llm.bind_tools(tools)
             self._user_llms[user_id] = llm_with_tools
         
         return (
@@ -173,21 +442,31 @@ class MemobaseAgent:
         # Get user profile
         user_profile = self._get_user_profile_context(user)
         
+        # Select appropriate system prompt based on RAG mode
+        if self.rag_mode == "semantic":
+            system_prompt_template = SYSTEM_PROMPT_SEMANTIC
+        elif self.rag_mode == "reasoning":
+            system_prompt_template = SYSTEM_PROMPT_REASONING
+        else:
+            # Default to semantic prompt if no RAG mode is specified
+            system_prompt_template = SYSTEM_PROMPT
+        
         # Create system message with profile
-        system_msg = SystemMessage(content=SYSTEM_PROMPT_TEMPLATE.format(user_profile=user_profile))
+        system_msg = SystemMessage(content=system_prompt_template.format(user_profile=user_profile))
         
         # Combine: system + history + new user message
         messages = [system_msg] + history.messages + [HumanMessage(content=user_message)]
         
         return messages
     
-    def chat(self, user_id: str, message: str) -> str:
+    def chat(self, user_id: str, message: str, verbose: bool = False) -> str:
         """
         Send a message and get response
         
         Args:
             user_id: User identifier
             message: User's message
+            verbose: Print tool selection process
             
         Returns:
             AI assistant's response
@@ -198,19 +477,37 @@ class MemobaseAgent:
         messages = self._format_messages_for_llm(user, history, message)
         try:
             # Get response from LLM
+            if verbose:
+                print(f"\n💭 Thinking...")
             response = llm_with_tools.invoke(messages)
             
             # Handle tool calls if any
             while response.tool_calls:
+                if verbose:
+                    for tool_call in response.tool_calls:
+                        tool_name = tool_call["name"]
+                        tool_args = tool_call["args"]
+                        print(f"🔧 Using tool: {tool_name}")
+                        print(f"   Args: {tool_args}")
+                
                 # Execute tool calls
                 tool_messages = []
                 for tool_call in response.tool_calls:
                     tool_name = tool_call["name"]
                     tool_args = tool_call["args"]
                     
-                    # Execute the search tool
-                    search_tool = self._create_search_tool_for_user(user)
-                    tool_result = search_tool.invoke(tool_args)
+                    # Execute the appropriate tool
+                    if tool_name == "search_event_profile":
+                        tool_func = self._create_search_tool_for_user(user)
+                    elif tool_name == "semantic_search":
+                        tool_func = self._create_semantic_search_tool()
+                    elif tool_name == "reasoning_search":
+                        tool_func = self._create_reasoning_search_tool()
+                    else:
+                        LOG.warning(f"Unknown tool: {tool_name}")
+                        continue
+                    
+                    tool_result = tool_func.invoke(tool_args)
                     
                     # Create tool message
                     from langchain_core.messages import ToolMessage
@@ -224,6 +521,9 @@ class MemobaseAgent:
                 # Add response and tool messages to conversation
                 messages.append(response)
                 messages.extend(tool_messages)
+                
+                if verbose:
+                    print(f"💭 Processing results...")
                 
                 # Get next response
                 response = llm_with_tools.invoke(messages)
@@ -247,13 +547,14 @@ class MemobaseAgent:
             LOG.error(f"Error in chat: {e}")
             return f"I encountered an error: {str(e)}"
     
-    def chat_stream(self, user_id: str, message: str):
+    def chat_stream(self, user_id: str, message: str, verbose: bool = False):
         """
         Stream response (generator)
         
         Args:
             user_id: User identifier
             message: User's message
+            verbose: Print tool selection process
             
         Yields:
             Chunks of AI response
@@ -266,12 +567,65 @@ class MemobaseAgent:
         full_response = ""
         
         try:
-            # Stream response
-            for chunk in llm_with_tools.stream(messages):
-                if hasattr(chunk, 'content') and chunk.content:
-                    content = chunk.content
-                    full_response += content
-                    yield content
+            if verbose:
+                yield "\n💭 Thinking...\n"
+            
+            # First, get the initial response to check for tool calls
+            response = llm_with_tools.invoke(messages)
+            
+            # Handle tool calls if any
+            while response.tool_calls:
+                if verbose:
+                    for tool_call in response.tool_calls:
+                        tool_name = tool_call["name"]
+                        tool_args = tool_call["args"]
+                        yield f"\n🔧 Using tool: {tool_name}\n"
+                        yield f"   Args: {tool_args}\n"
+                
+                # Execute tool calls
+                tool_messages = []
+                for tool_call in response.tool_calls:
+                    tool_name = tool_call["name"]
+                    tool_args = tool_call["args"]
+                    
+                    # Execute the appropriate tool
+                    if tool_name == "search_event_profile":
+                        tool_func = self._create_search_tool_for_user(user)
+                    elif tool_name == "semantic_search":
+                        tool_func = self._create_semantic_search_tool()
+                    elif tool_name == "reasoning_search":
+                        tool_func = self._create_reasoning_search_tool()
+                    else:
+                        LOG.warning(f"Unknown tool: {tool_name}")
+                        continue
+                    
+                    tool_result = tool_func.invoke(tool_args)
+                    
+                    # Create tool message
+                    from langchain_core.messages import ToolMessage
+                    tool_messages.append(
+                        ToolMessage(
+                            content=str(tool_result),
+                            tool_call_id=tool_call["id"]
+                        )
+                    )
+                
+                # Add response and tool messages to conversation
+                messages.append(response)
+                messages.extend(tool_messages)
+                
+                if verbose:
+                    yield "\n💭 Processing results...\n"
+                
+                # Get next response
+                response = llm_with_tools.invoke(messages)
+            
+            # Get the final response content
+            if hasattr(response, 'content'):
+                full_response = response.content
+                # Stream it character by character for consistency
+                for char in full_response:
+                    yield char
             
             # Add to history
             history.add_user_message(message)
@@ -356,6 +710,15 @@ def create_memobase_agent(
     max_profile_tokens: int = 1000,
     temperature: float = 0.7,
     max_history_messages: int = 5,
+    # RAG configuration
+    rag_mode: Optional[Literal["semantic", "reasoning"]] = None,
+    # Semantic search config
+    qdrant_url: Optional[str] = None,
+    qdrant_api_key: Optional[str] = None,
+    qdrant_collection_name: Optional[str] = None,
+    # Reasoning search config
+    pageindex_api_key: Optional[str] = None,
+    pageindex_doc_ids: Optional[List[str]] = None,
 ) -> MemobaseAgent:
     """
     Factory function to create a MemobaseAgent
@@ -368,6 +731,12 @@ def create_memobase_agent(
         max_profile_tokens: Maximum tokens for profile context
         temperature: LLM temperature
         max_history_messages: Maximum number of messages to keep in short-term memory (default: 5)
+        rag_mode: RAG mode - "semantic" for vector search or "reasoning" for logical search
+        qdrant_url: Qdrant URL (required for semantic mode)
+        qdrant_api_key: Qdrant API key (required for semantic mode)
+        qdrant_collection_name: Qdrant collection name (required for semantic mode)
+        pageindex_api_key: PageIndex API key (required for reasoning mode)
+        pageindex_doc_ids: List of PageIndex document IDs (required for reasoning mode)
         
     Returns:
         MemobaseAgent instance
@@ -380,4 +749,10 @@ def create_memobase_agent(
         max_profile_tokens=max_profile_tokens,
         temperature=temperature,
         max_history_messages=max_history_messages,
+        rag_mode=rag_mode,
+        qdrant_url=qdrant_url,
+        qdrant_api_key=qdrant_api_key,
+        qdrant_collection_name=qdrant_collection_name,
+        pageindex_api_key=pageindex_api_key,
+        pageindex_doc_ids=pageindex_doc_ids,
     )

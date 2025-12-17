@@ -322,3 +322,7 @@ dist
 # act
 .actrc
 event.json
+
+# API Keys and sensitive configuration files
+src/client/memobase/patch/config.py
+src/client/memobase/patch/pageindex_RAG_simple.ipynb
