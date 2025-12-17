@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple Local Launcher for Memobase Chat Demo
-No ngrok - just runs FastAPI server locally
+Simple Local Launcher for Memobase Chat Demo with Streamlit
+Runs Streamlit server locally
 
 Run with:
   conda activate memobase_vivi && python run_local.py
@@ -23,7 +23,7 @@ END = '\033[0m'
 
 def main():
     print(f"\n{BOLD}{'='*60}")
-    print(f"🚀 MEMOBASE CHAT DEMO - LOCAL MODE")
+    print(f"🚗 ViVi - VinFast AI Assistant")
     print(f"{'='*60}{END}\n")
     
     # Check .env
@@ -49,51 +49,32 @@ def main():
         print(f"   Start Memobase server: cd src/server && docker-compose up -d")
         sys.exit(1)
     
-    # Start FastAPI
-    print(f"{CYAN}[3/3] Starting FastAPI server...{END}", end=" ", flush=True)
-    server = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app_simple:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True
-    )
+    # Start Streamlit
+    print(f"{CYAN}[3/3] Starting Streamlit server...{END}")
+    print()
     
-    # Wait for server
-    for i in range(20):
-        time.sleep(0.5)
-        try:
-            if requests.get("http://localhost:8000/health", timeout=0.5).status_code == 200:
-                print(f"{GREEN}✅{END}")
-                break
-        except:
-            if i > 0 and i % 2 == 0:
-                print(".", end="", flush=True)
-    else:
-        print(f"{RED}❌ Timeout{END}")
-        server.terminate()
-        sys.exit(1)
-    
-    # Success
-    print(f"\n{BOLD}{'='*60}{END}")
-    print(f"{GREEN}✅ Server is running!{END}")
+    # Success message
     print(f"{BOLD}{'='*60}{END}")
-    print(f"\n🌐 Access the demo at: {CYAN}http://localhost:8000{END}")
-    print(f"📊 API docs at: {CYAN}http://localhost:8000/docs{END}")
+    print(f"{GREEN}✅ Starting ViVi Assistant...{END}")
+    print(f"{BOLD}{'='*60}{END}")
+    print(f"\n🌐 Access the app at: {CYAN}http://localhost:8501{END}")
     print(f"\n{YELLOW}Press Ctrl+C to stop{END}\n")
+    print(f"{BOLD}{'='*60}{END}\n")
     
-    # Keep running
+    # Start Streamlit
     try:
-        # Stream server logs
-        for line in server.stdout:
-            print(line, end='')
+        subprocess.run([
+            sys.executable, "-m", "streamlit", "run", "app.py",
+            "--server.port", "8501",
+            "--server.address", "0.0.0.0",
+            "--theme.base", "dark",
+            "--theme.primaryColor", "#00D4FF",
+            "--theme.backgroundColor", "#0A0E27",
+            "--theme.secondaryBackgroundColor", "#1A1F3A",
+            "--theme.textColor", "#FFFFFF"
+        ])
     except KeyboardInterrupt:
         print(f"\n\n{YELLOW}🛑 Shutting down...{END}")
-    finally:
-        server.terminate()
-        try:
-            server.wait(timeout=5)
-        except:
-            server.kill()
         print(f"{GREEN}✅ Stopped{END}\n")
 
 if __name__ == "__main__":

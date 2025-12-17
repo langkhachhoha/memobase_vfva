@@ -307,13 +307,13 @@ def demo_agent_interactive(rag_mode=None):
         print("AI: ", end="", flush=True)
         
         if STREAM:
-            # Stream response with verbose output
-            for chunk in agent.chat_stream(USER_NAME, user_input, verbose=True):
+            # Stream response
+            for chunk in agent.chat_stream(USER_NAME, user_input, verbose=False):
                 print(chunk, end="", flush=True)
             print("\n")
         else:
-            # Non-streaming response with verbose output
-            response = agent.chat(USER_NAME, user_input, verbose=True)
+            # Non-streaming response
+            response = agent.chat(USER_NAME, user_input, verbose=False)
             print(response + "\n")
 
 

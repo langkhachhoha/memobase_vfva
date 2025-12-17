@@ -6,3 +6,9 @@ uvicorn[standard]
 pyngrok
 python-dotenv
 requests
+qdrant_client
+streamlit
+langchain
+langchain-openai
+langchain-core
+

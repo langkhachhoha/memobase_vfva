@@ -554,7 +554,7 @@ class MemobaseAgent:
         Args:
             user_id: User identifier
             message: User's message
-            verbose: Print tool selection process
+            verbose: Not used anymore, kept for backwards compatibility
             
         Yields:
             Chunks of AI response
@@ -567,21 +567,11 @@ class MemobaseAgent:
         full_response = ""
         
         try:
-            if verbose:
-                yield "\n💭 Thinking...\n"
-            
             # First, get the initial response to check for tool calls
             response = llm_with_tools.invoke(messages)
             
-            # Handle tool calls if any
+            # Handle tool calls silently (no output to user)
             while response.tool_calls:
-                if verbose:
-                    for tool_call in response.tool_calls:
-                        tool_name = tool_call["name"]
-                        tool_args = tool_call["args"]
-                        yield f"\n🔧 Using tool: {tool_name}\n"
-                        yield f"   Args: {tool_args}\n"
-                
                 # Execute tool calls
                 tool_messages = []
                 for tool_call in response.tool_calls:
@@ -614,18 +604,14 @@ class MemobaseAgent:
                 messages.append(response)
                 messages.extend(tool_messages)
                 
-                if verbose:
-                    yield "\n💭 Processing results...\n"
-                
-                # Get next response
+                # Check if there are more tool calls
                 response = llm_with_tools.invoke(messages)
             
-            # Get the final response content
-            if hasattr(response, 'content'):
-                full_response = response.content
-                # Stream it character by character for consistency
-                for char in full_response:
-                    yield char
+            # Now stream the final response using LLM's stream method
+            for chunk in llm_with_tools.stream(messages):
+                if hasattr(chunk, 'content') and chunk.content:
+                    full_response += chunk.content
+                    yield chunk.content
             
             # Add to history
             history.add_user_message(message)

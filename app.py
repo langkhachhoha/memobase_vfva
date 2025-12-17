@@ -1,1074 +1,536 @@
 """
-FastAPI Demo Application for Memobase + OpenAI Memory
-Provides a web interface for the interactive chat with memory functionality
-
-Features:
-- Auto-flush at 1024 tokens (handled by MemoBase)
-- Manual flush via button or on session end
-- Real-time profile updates
+Streamlit App for Memobase + VinFast Assistant
+Modern UI with 5 different demo modes
 """
 
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src" / "client"))
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, List, Dict
+import streamlit as st
 import os
 from dotenv import load_dotenv
-import asyncio
-import json
-
 from memobase import MemoBaseClient
 from openai import OpenAI
 from memobase.patch.openai import openai_memory
 from memobase.utils import string_to_uuid
+from memobase.patch.Agent import create_memobase_agent
+from memobase.patch.config import (
+    QDRANT_URL, QDRANT_API_KEY, COLLECTION_NAME,
+    PAGEINDEX_API_KEY
+)
+from concurrent.futures import ThreadPoolExecutor
+from rich import print as rprint
+import time
 
 load_dotenv()
+
+# Page config
+st.set_page_config(
+    page_title="ViVi - VinFast AI Assistant",
+    page_icon="🚗",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for modern, beautiful UI
+st.markdown("""
+<style>
+    /* Main theme colors */
+    :root {
+        --primary-color: #0066FF;
+        --secondary-color: #00D4FF;
+        --background-dark: #0A0E27;
+        --background-light: #1A1F3A;
+        --text-primary: #FFFFFF;
+        --text-secondary: #B4B9D3;
+        --accent-purple: #8B5CF6;
+        --accent-green: #10B981;
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0A0E27 0%, #1A1F3A 100%);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    [data-testid="stSidebar"] h1 {
+        color: var(--secondary-color);
+        text-align: center;
+        font-size: 2rem;
+        margin-bottom: 1rem;
+        text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    }
+    
+    /* Radio buttons */
+    .stRadio > label {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+    
+    .stRadio > div {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    
+    .stRadio > div > label {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 0.8rem 1rem;
+        margin: 0.3rem 0;
+        transition: all 0.3s ease;
+        border: 1px solid transparent;
+    }
+    
+    .stRadio > div > label:hover {
+        background: rgba(0, 212, 255, 0.1);
+        border: 1px solid var(--secondary-color);
+        transform: translateX(5px);
+    }
+    
+    /* Main content area */
+    .main {
+        background: linear-gradient(135deg, #0A0E27 0%, #1A1F3A 100%);
+    }
+    
+    /* Headers */
+    h1 {
+        color: var(--text-primary);
+        font-weight: 700;
+        background: linear-gradient(90deg, #0066FF 0%, #00D4FF 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    h2, h3 {
+        color: var(--text-primary);
+    }
+    
+    /* Chat messages */
+    .stChatMessage {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 15px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Input box */
+    .stChatInputContainer {
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.02);
+    }
+    
+    /* Buttons */
+    .stButton > button {
+        background: linear-gradient(90deg, #0066FF 0%, #00D4FF 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 0.6rem 2rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0, 102, 255, 0.3);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5);
+    }
+    
+    /* Info boxes */
+    .stAlert {
+        background: rgba(139, 92, 246, 0.1);
+        border: 1px solid var(--accent-purple);
+        border-radius: 10px;
+    }
+    
+    /* Metrics */
+    [data-testid="stMetricValue"] {
+        font-size: 2rem;
+        color: var(--secondary-color);
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #0066FF 0%, #00D4FF 100%);
+        border-radius: 10px;
+    }
+    
+    /* Mode badges */
+    .mode-badge {
+        display: inline-block;
+        padding: 0.3rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 0.5rem 0;
+    }
+    
+    .mode-openai {
+        background: linear-gradient(90deg, #10B981 0%, #059669 100%);
+        color: white;
+    }
+    
+    .mode-agent {
+        background: linear-gradient(90deg, #8B5CF6 0%, #7C3AED 100%);
+        color: white;
+    }
+    
+    .mode-semantic {
+        background: linear-gradient(90deg, #0066FF 0%, #00D4FF 100%);
+        color: white;
+    }
+    
+    .mode-reasoning {
+        background: linear-gradient(90deg, #F59E0B 0%, #D97706 100%);
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Configuration
 MODEL = "gpt-4o-mini"
 BUFFER_SIZE = 5
 
 # Initialize clients
-openai_client = OpenAI(
-    api_key=os.getenv('llm_api_key'), 
-    base_url="https://api.openai.com/v1/"
-)
-
-mb_client = MemoBaseClient(
-    project_url="http://localhost:8019",
-    api_key="secret",
-)
-
-# Patch OpenAI client with memory capability
-openai_client = openai_memory(openai_client, mb_client, max_context_size=1000)
-
-# Store conversation histories per user
-user_conversations: Dict[str, List[Dict]] = {}
-user_conversation_counts: Dict[str, int] = {}
-
-# Initialize FastAPI app
-app = FastAPI(
-    title="Memobase Chat Demo",
-    description="Interactive chat with long-term memory using Memobase",
-    version="1.0.0"
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Pydantic models
-class ChatMessage(BaseModel):
-    message: str
-    user_id: str = "langkhachhoha"
-
-class ChatResponse(BaseModel):
-    response: str
-    conversation_count: int
-    auto_flushed: bool = False
-
-class MemoryResponse(BaseModel):
-    memory: str
-    user_id: str
-
-class UserProfile(BaseModel):
-    user_id: str
-    profile: dict
-
-# HTML Frontend
-HTML_CONTENT = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Memobase Chat Demo</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .main-layout {
-            display: flex;
-            gap: 20px;
-            width: 100%;
-            max-width: 1400px;
-            height: 90vh;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            flex: 1;
-            min-width: 600px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        
-        .profile-panel {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            width: 400px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px 30px;
-            border-radius: 20px 20px 0 0;
-        }
-        
-        .header h1 {
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
-        
-        .header p {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        
-        .user-info {
-            background: rgba(255,255,255,0.2);
-            padding: 10px 15px;
-            border-radius: 10px;
-            margin-top: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .user-info input {
-            background: rgba(255,255,255,0.3);
-            border: none;
-            padding: 8px 12px;
-            border-radius: 5px;
-            color: white;
-            font-size: 14px;
-            width: 200px;
-        }
-        
-        .user-info input::placeholder {
-            color: rgba(255,255,255,0.7);
-        }
-        
-        .user-info button {
-            background: rgba(255,255,255,0.3);
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            color: white;
-            cursor: pointer;
-            font-size: 13px;
-            transition: all 0.3s;
-        }
-        
-        .user-info button:hover {
-            background: rgba(255,255,255,0.4);
-        }
-        
-        .chat-container {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px 30px;
-            background: #f8f9fa;
-        }
-        
-        .message {
-            margin-bottom: 20px;
-            display: flex;
-            animation: slideIn 0.3s ease;
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .message.user {
-            justify-content: flex-end;
-        }
-        
-        .message-content {
-            max-width: 70%;
-            padding: 12px 18px;
-            border-radius: 18px;
-            line-height: 1.5;
-        }
-        
-        .message.user .message-content {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-bottom-right-radius: 4px;
-        }
-        
-        .message.assistant .message-content {
-            background: white;
-            color: #333;
-            border: 1px solid #e0e0e0;
-            border-bottom-left-radius: 4px;
-        }
-        
-        .system-message {
-            text-align: center;
-            color: #666;
-            font-size: 13px;
-            margin: 15px 0;
-            padding: 8px;
-            background: rgba(102, 126, 234, 0.1);
-            border-radius: 8px;
-        }
-        
-        .input-container {
-            padding: 20px 30px;
-            background: white;
-            border-top: 1px solid #e0e0e0;
-            display: flex;
-            gap: 10px;
-        }
-        
-        .input-container input {
-            flex: 1;
-            padding: 12px 18px;
-            border: 2px solid #e0e0e0;
-            border-radius: 25px;
-            font-size: 15px;
-            outline: none;
-            transition: border-color 0.3s;
-        }
-        
-        .input-container input:focus {
-            border-color: #667eea;
-        }
-        
-        .input-container button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 15px;
-            font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        .input-container button:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .input-container button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .loading {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #667eea;
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 1; }
-        }
-        
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .action-buttons button {
-            padding: 8px 15px;
-            font-size: 13px;
-        }
-        
-        /* Profile Panel Styles */
-        .profile-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 20px 20px 0 0;
-        }
-        
-        .profile-header h2 {
-            font-size: 20px;
-            margin-bottom: 5px;
-        }
-        
-        .profile-header p {
-            font-size: 13px;
-            opacity: 0.9;
-        }
-        
-        .profile-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-            background: #f8f9fa;
-        }
-        
-        .profile-empty {
-            text-align: center;
-            padding: 40px 20px;
-            color: #999;
-        }
-        
-        .profile-empty-icon {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-        
-        .profile-section {
-            background: white;
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-        
-        .profile-section-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #667eea;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .profile-item {
-            padding: 8px 0;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        
-        .profile-item:last-child {
-            border-bottom: none;
-        }
-        
-        .profile-label {
-            font-size: 12px;
-            color: #999;
-            margin-bottom: 4px;
-        }
-        
-        .profile-value {
-            font-size: 14px;
-            color: #333;
-            font-weight: 500;
-        }
-        
-        .profile-badge {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            margin: 4px 4px 4px 0;
-        }
-        
-        .profile-list {
-            list-style: none;
-            padding: 0;
-        }
-        
-        .profile-list li {
-            padding: 6px 0;
-            font-size: 14px;
-            color: #555;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .profile-list li:before {
-            content: "•";
-            color: #667eea;
-            font-weight: bold;
-            font-size: 18px;
-        }
-        
-        .profile-refresh {
-            text-align: center;
-            padding: 10px;
-            background: white;
-            border-top: 1px solid #e0e0e0;
-        }
-        
-        .profile-refresh button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-            transition: transform 0.2s;
-        }
-        
-        .profile-refresh button:hover {
-            transform: translateY(-2px);
-        }
-        
-        .profile-loading {
-            text-align: center;
-            padding: 20px;
-            color: #999;
-        }
-        
-        @media (max-width: 1200px) {
-            .main-layout {
-                flex-direction: column;
-                height: auto;
-            }
-            
-            .profile-panel {
-                width: 100%;
-                max-height: 400px;
-            }
-            
-            .container {
-                min-width: auto;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="main-layout">
-        <div class="container">
-        <div class="header">
-            <h1>🤖 Memobase Chat Demo</h1>
-            <p>Interactive chat with long-term memory • Auto-flush: 1024 tokens or 1 hour</p>
-            <div class="user-info">
-                <input type="text" id="userId" placeholder="Enter your user ID" value="langkhachhoha">
-                <div class="action-buttons">
-                    <button onclick="viewMemory()">📚 View Memory</button>
-                    <button onclick="flushMemory()">💾 Manual Flush</button>
-                    <button onclick="refreshProfile()">👤 Refresh Profile</button>
-                </div>
-            </div>
-        </div>
-        
-        <div class="chat-container" id="chatContainer">
-            <div class="system-message">
-                👋 Welcome! Start chatting to see memory in action. Memory auto-saves at 1024 tokens or 1 hour.
-            </div>
-        </div>
-        
-        <div class="input-container">
-            <input 
-                type="text" 
-                id="messageInput" 
-                placeholder="Type your message here..." 
-                onkeypress="handleKeyPress(event)"
-            >
-            <button onclick="sendMessage()" id="sendButton">Send</button>
-        </div>
-    </div>
-    
-    <!-- Profile Panel -->
-    <div class="profile-panel">
-        <div class="profile-header">
-            <h2>👤 User Profile</h2>
-            <p>Real-time profile information</p>
-        </div>
-        
-        <div class="profile-content" id="profileContent">
-            <div class="profile-empty">
-                <div class="profile-empty-icon">📋</div>
-                <p>No profile data yet</p>
-                <p style="font-size: 12px; margin-top: 8px;">Start chatting to build your profile</p>
-            </div>
-        </div>
-        
-        <div class="profile-refresh">
-            <button onclick="refreshProfile()">🔄 Refresh Profile</button>
-        </div>
-    </div>
-</div>
-    
-    <script>
-        let isLoading = false;
-        let profileRefreshInterval = null;
-        
-        // Start auto-refresh on load
-        window.addEventListener('load', () => {
-            refreshProfile();
-            // Auto-refresh every 10 seconds
-            profileRefreshInterval = setInterval(refreshProfile, 10000);
-        });
-        
-        function addMessage(role, content, isSystem = false) {
-            const chatContainer = document.getElementById('chatContainer');
-            
-            if (isSystem) {
-                const systemDiv = document.createElement('div');
-                systemDiv.className = 'system-message';
-                systemDiv.textContent = content;
-                chatContainer.appendChild(systemDiv);
-            } else {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = `message ${role}`;
-                
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'message-content';
-                contentDiv.textContent = content;
-                
-                messageDiv.appendChild(contentDiv);
-                chatContainer.appendChild(messageDiv);
-            }
-            
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-        
-        async function sendMessage() {
-            console.log('sendMessage called');
-            if (isLoading) {
-                console.log('Already loading, returning');
-                return;
-            }
-            
-            const input = document.getElementById('messageInput');
-            const userId = document.getElementById('userId').value.trim() || 'langkhachhoha';
-            const message = input.value.trim();
-            
-            console.log('Message:', message);
-            if (!message) {
-                console.log('Empty message, returning');
-                return;
-            }
-            
-            // Add user message
-            addMessage('user', message);
-            input.value = '';
-            
-            // Disable input
-            isLoading = true;
-            document.getElementById('sendButton').disabled = true;
-            document.getElementById('sendButton').textContent = 'Thinking...';
-            
-            // Create assistant message container for streaming
-            const chatContainer = document.getElementById('chatContainer');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message assistant';
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            contentDiv.textContent = '';
-            messageDiv.appendChild(contentDiv);
-            chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            
-            try {
-                const response = await fetch('/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: message,
-                        user_id: userId
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to get response');
-                }
-                
-                // Read streaming response
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-                
-                while (true) {
-                    const { done, value } = await reader.read();
-                    
-                    if (done) break;
-                    
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n\n');
-                    buffer = lines.pop(); // Keep incomplete line in buffer
-                    
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const data = JSON.parse(line.slice(6));
-                            
-                            if (data.type === 'content') {
-                                // Append content to message
-                                contentDiv.textContent += data.content;
-                                chatContainer.scrollTop = chatContainer.scrollHeight;
-                            } else if (data.type === 'done') {
-                                // Show auto-flush message if it happened
-                                if (data.auto_flushed) {
-                                    addMessage('', `💾 Memory auto-saved! (Total turns: ${data.conversation_count})`, true);
-                                }
-                            } else if (data.type === 'error') {
-                                throw new Error(data.error);
-                            }
-                        }
-                    }
-                }
-                
-            } catch (error) {
-                console.error('Error:', error);
-                // Remove the empty message if error occurred
-                if (contentDiv.textContent === '') {
-                    messageDiv.remove();
-                }
-                addMessage('', '❌ Error: Failed to get response', true);
-            } finally {
-                isLoading = false;
-                document.getElementById('sendButton').disabled = false;
-                document.getElementById('sendButton').textContent = 'Send';
-                input.focus();
-            }
-        }
-        
-        async function viewMemory() {
-            const userId = document.getElementById('userId').value.trim() || 'langkhachhoha';
-            
-            try {
-                const response = await fetch(`/memory/${userId}`);
-                const data = await response.json();
-                
-                if (data.memory) {
-                    addMessage('', `📚 Long-term Memory:\n${data.memory}`, true);
-                } else {
-                    addMessage('', '📚 No long-term memory stored yet', true);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                addMessage('', '❌ Error: Failed to retrieve memory', true);
-            }
-        }
-        
-        async function flushMemory() {
-            const userId = document.getElementById('userId').value.trim() || 'langkhachhoha';
-            
-            try {
-                const response = await fetch(`/flush/${userId}`, {
-                    method: 'POST'
-                });
-                
-                if (response.ok) {
-                    addMessage('', '✅ Memory flushed successfully!', true);
-                } else {
-                    throw new Error('Failed to flush memory');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                addMessage('', '❌ Error: Failed to flush memory', true);
-            }
-        }
-        
-        function handleKeyPress(event) {
-            if (event.key === 'Enter' && !isLoading) {
-                sendMessage();
-            }
-        }
-        
-        async function refreshProfile() {
-            const userId = document.getElementById('userId').value.trim() || 'langkhachhoha';
-            const profileContent = document.getElementById('profileContent');
-            
-            try {
-                // Fetch both profile and memory
-                const [profileRes, memoryRes] = await Promise.all([
-                    fetch(`/profile/${userId}`),
-                    fetch(`/memory/${userId}`)
-                ]);
-                
-                if (!profileRes.ok && !memoryRes.ok) {
-                    throw new Error('Failed to fetch profile');
-                }
-                
-                let parsedProfile = {};
-                
-                // Try to get memory first (more structured)
-                if (memoryRes.ok) {
-                    const memoryData = await memoryRes.json();
-                    if (memoryData.memory) {
-                        parsedProfile = parseMemoryToProfile(memoryData.memory);
-                    }
-                }
-                
-                // Fallback to profile API if memory is empty
-                if (Object.keys(parsedProfile).length === 0 && profileRes.ok) {
-                    const profileData = await profileRes.json();
-                    parsedProfile = profileData.profile || {};
-                }
-                
-                displayProfile(parsedProfile);
-                
-            } catch (error) {
-                console.error('Error fetching profile:', error);
-                profileContent.innerHTML = `
-                    <div class="profile-empty">
-                        <div class="profile-empty-icon">❌</div>
-                        <p>Failed to load profile</p>
-                    </div>
-                `;
-            }
-        }
-        
-        function parseMemoryToProfile(memoryText) {
-            if (!memoryText) return {};
-            
-            const profile = {};
-            
-            // Extract User Current Profile section
-            const profileMatch = memoryText.match(/## User Current Profile:([\s\S]*?)(?=##|---|\n\n$|$)/);
-            if (!profileMatch) return {};
-            
-            const profileSection = profileMatch[1];
-            
-            // Parse each line with format: - category::field: content [mention date]
-            const lines = profileSection.split('\n').filter(line => line.trim().startsWith('-'));
-            
-            lines.forEach(line => {
-                // Match pattern: - category::field: content [mention date]
-                const match = line.match(/- ([^:]+)::([^:]+):\s*(.+?)(?:\s*\[mention[^\]]*\])?$/);
-                if (match) {
-                    const [, category, field, content] = match;
-                    const categoryKey = category.trim();
-                    const fieldKey = field.trim();
-                    const value = content.trim();
-                    
-                    // Initialize category if not exists
-                    if (!profile[categoryKey]) {
-                        profile[categoryKey] = {};
-                    }
-                    
-                    // Add or append to field
-                    if (profile[categoryKey][fieldKey]) {
-                        // If field already exists, make it an array
-                        if (!Array.isArray(profile[categoryKey][fieldKey])) {
-                            profile[categoryKey][fieldKey] = [profile[categoryKey][fieldKey]];
-                        }
-                        profile[categoryKey][fieldKey].push(value);
-                    } else {
-                        profile[categoryKey][fieldKey] = value;
-                    }
-                }
-            });
-            
-            return profile;
-        }
-        
-        function displayProfile(profile) {
-            const profileContent = document.getElementById('profileContent');
-            
-            // Check if profile is empty
-            if (!profile || Object.keys(profile).length === 0) {
-                profileContent.innerHTML = `
-                    <div class="profile-empty">
-                        <div class="profile-empty-icon">📋</div>
-                        <p>No profile data yet</p>
-                        <p style="font-size: 12px; margin-top: 8px;">Start chatting to build your profile</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            let html = '';
-            
-            // Category icons mapping
-            const categoryIcons = {
-                'psychological': '🧠',
-                'work': '💼',
-                'interest': '⭐',
-                'contact_info': '📧',
-                'basic_info': '👤',
-                'education': '🎓',
-                'skill': '🛠️',
-                'hobby': '🎨',
-                'goal': '🎯',
-                'experience': '📚'
-            };
-            
-            // Render each profile section
-            for (const [key, value] of Object.entries(profile)) {
-                if (!value || (Array.isArray(value) && value.length === 0)) continue;
-                
-                const icon = categoryIcons[key.toLowerCase()] || '📌';
-                html += `<div class="profile-section">`;
-                html += `<div class="profile-section-title">${icon} ${formatKey(key)}</div>`;
-                
-                if (Array.isArray(value)) {
-                    // Render as list
-                    html += `<ul class="profile-list">`;
-                    value.forEach(item => {
-                        if (typeof item === 'object') {
-                            html += `<li>${JSON.stringify(item)}</li>`;
-                        } else {
-                            const itemStr = String(item);
-                            // Split by semicolon for multi-line content
-                            if (itemStr.includes(';')) {
-                                const parts = itemStr.split(';').map(p => p.trim()).filter(p => p);
-                                parts.forEach(part => {
-                                    html += `<li style="font-size: 13px;">${escapeHtml(part)}</li>`;
-                                });
-                            } else {
-                                html += `<li>${escapeHtml(itemStr)}</li>`;
-                            }
-                        }
-                    });
-                    html += `</ul>`;
-                } else if (typeof value === 'object') {
-                    // Render nested object
-                    for (const [subKey, subValue] of Object.entries(value)) {
-                        html += `<div class="profile-item">`;
-                        html += `<div class="profile-label">${formatKey(subKey)}</div>`;
-                        
-                        if (Array.isArray(subValue)) {
-                            // Multiple values - render as list
-                            html += `<ul class="profile-list" style="margin-top: 5px;">`;
-                            subValue.forEach(item => {
-                                const itemStr = String(item);
-                                if (itemStr.includes(';')) {
-                                    const parts = itemStr.split(';').map(p => p.trim()).filter(p => p);
-                                    parts.forEach(part => {
-                                        html += `<li style="font-size: 13px;">${escapeHtml(part)}</li>`;
-                                    });
-                                } else {
-                                    html += `<li>${escapeHtml(itemStr)}</li>`;
-                                }
-                            });
-                            html += `</ul>`;
-                        } else {
-                            // Single value
-                            const valueStr = String(subValue);
-                            if (valueStr.includes(';')) {
-                                // Multi-line content
-                                const parts = valueStr.split(';').map(p => p.trim()).filter(p => p);
-                                html += `<ul class="profile-list" style="margin-top: 5px;">`;
-                                parts.forEach(part => {
-                                    html += `<li style="font-size: 13px;">${escapeHtml(part)}</li>`;
-                                });
-                                html += `</ul>`;
-                            } else {
-                                html += `<div class="profile-value">${escapeHtml(valueStr)}</div>`;
-                            }
-                        }
-                        html += `</div>`;
-                    }
-                } else {
-                    // Render simple value
-                    const valueStr = String(value);
-                    if (valueStr.includes(';')) {
-                        const parts = valueStr.split(';').map(p => p.trim()).filter(p => p);
-                        html += `<ul class="profile-list">`;
-                        parts.forEach(part => {
-                            html += `<li style="font-size: 13px;">${escapeHtml(part)}</li>`;
-                        });
-                        html += `</ul>`;
-                    } else {
-                        html += `<div class="profile-value">${escapeHtml(valueStr)}</div>`;
-                    }
-                }
-                
-                html += `</div>`;
-            }
-            
-            if (html === '') {
-                profileContent.innerHTML = `
-                    <div class="profile-empty">
-                        <div class="profile-empty-icon">📋</div>
-                        <p>No profile data yet</p>
-                    </div>
-                `;
-            } else {
-                profileContent.innerHTML = html;
-            }
-        }
-        
-        function formatKey(key) {
-            // Convert snake_case or camelCase to Title Case
-            return key
-                .replace(/_/g, ' ')
-                .replace(/([A-Z])/g, ' $1')
-                .split(' ')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                .join(' ')
-                .trim();
-        }
-        
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        // Focus input on load
-        document.getElementById('messageInput').focus();
-    </script>
-</body>
-</html>
-"""
-
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    """Serve the chat interface"""
-    return HTML_CONTENT
-
-@app.post("/chat")
-async def chat(message: ChatMessage):
-    """Handle chat messages with memory - streaming response"""
-    user_id = message.user_id
-    
-    # Initialize user conversation history if not exists
-    if user_id not in user_conversations:
-        user_conversations[user_id] = []
-        user_conversation_counts[user_id] = 0
-        # Ensure user exists in Memobase
-        try:
-            mb_client.get_or_create_user(string_to_uuid(user_id))
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to initialize user: {str(e)}")
-    
-    # Add user message to conversation history
-    user_conversations[user_id].append({"role": "user", "content": message.message})
-    
-    # Keep only last BUFFER_SIZE * 2 messages (sliding window)
-    if len(user_conversations[user_id]) > BUFFER_SIZE * 2:
-        user_conversations[user_id] = user_conversations[user_id][1:]
-    
-    async def generate_stream():
-        """Generator function for streaming response"""
-        try:
-            # Get streaming response from OpenAI with memory
-            stream = openai_client.chat.completions.create(
-                messages=user_conversations[user_id],
-                model=MODEL,
-                stream=True,
-                user_id=user_id,
-            )
-            
-            assistant_message = ""
-            
-            # Stream each chunk
-            for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    assistant_message += content
-                    # Send chunk as JSON
-                    yield f"data: {json.dumps({'type': 'content', 'content': content})}\n\n"
-            
-            # Add assistant response to conversation history
-            user_conversations[user_id].append({"role": "assistant", "content": assistant_message})
-            
-            # Increment conversation count
-            user_conversation_counts[user_id] += 1
-            
-            # Send completion message with metadata
-            # Note: Auto-flush happens automatically at 1024 tokens or 1 hour (handled by MemoBase)
-            yield f"data: {json.dumps({'type': 'done', 'conversation_count': user_conversation_counts[user_id], 'auto_flushed': False})}\n\n"
-            
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
-    
-    return StreamingResponse(
-        generate_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
+@st.cache_resource
+def init_clients():
+    """Initialize MemoBase and OpenAI clients"""
+    mb_client = MemoBaseClient(
+        project_url="http://localhost:8019",
+        api_key="secret",
     )
+    
+    openai_client = OpenAI(
+        api_key=os.getenv('llm_api_key'), 
+        base_url="https://api.openai.com/v1/"
+    )
+    
+    # Patch OpenAI client with memory
+    openai_client = openai_memory(openai_client, mb_client, max_context_size=1000)
+    
+    return mb_client, openai_client
 
-@app.get("/memory/{user_id}", response_model=MemoryResponse)
-async def get_memory(user_id: str):
-    """Get long-term memory for a user"""
-    try:
-        memory = openai_client.get_memory_prompt(user_id)
-        return MemoryResponse(memory=memory or "", user_id=user_id)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve memory: {str(e)}")
+mb_client, openai_client = init_clients()
 
-@app.post("/flush/{user_id}")
-async def flush_memory(user_id: str):
-    """Manually flush memory buffer for a user"""
-    try:
-        await asyncio.sleep(0.1)
-        openai_client.flush(user_id)
-        return {"status": "success", "message": "Memory flushed successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to flush memory: {str(e)}")
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "mode" not in st.session_state:
+    st.session_state.mode = "1"
+if "agent" not in st.session_state:
+    st.session_state.agent = None
+if "conversation_history" not in st.session_state:
+    st.session_state.conversation_history = []
+if "user_id" not in st.session_state:
+    st.session_state.user_id = "langkhachhoha"
+if "assistant_name" not in st.session_state:
+    st.session_state.assistant_name = "ViVi Assistant"
 
-@app.get("/profile/{user_id}", response_model=UserProfile)
-async def get_user_profile(user_id: str):
-    """Get user profile from Memobase"""
-    try:
-        user = mb_client.get_or_create_user(string_to_uuid(user_id))
-        profile = user.profile(need_json=True)
-        return UserProfile(user_id=user_id, profile=profile)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get profile: {str(e)}")
+def get_mode_info(mode):
+    """Get mode information"""
+    modes = {
+        "1": {
+            "name": "OpenAI Chat",
+            "description": "Original OpenAI with memory",
+            "icon": "💬",
+            "badge": "mode-openai",
+            "tools": "None"
+        },
+        "2": {
+            "name": "Agent (No RAG)",
+            "description": "LangChain Agent without RAG",
+            "icon": "🤖",
+            "badge": "mode-agent",
+            "tools": "search_event_profile"
+        },
+        "3": {
+            "name": "Semantic Search",
+            "description": "Vector search with Qdrant",
+            "icon": "🔍",
+            "badge": "mode-semantic",
+            "tools": "search_event_profile, semantic_search"
+        },
+        "4": {
+            "name": "Logical Reasoning",
+            "description": "Tree-based search with PageIndex",
+            "icon": "🧠",
+            "badge": "mode-reasoning",
+            "tools": "search_event_profile, reasoning_search"
+        },
+        "5": {
+            "name": "Profile Search",
+            "description": "Demo search_event_profile",
+            "icon": "👤",
+            "badge": "mode-agent",
+            "tools": "search_event_profile"
+        }
+    }
+    return modes.get(mode, modes["1"])
 
-@app.delete("/conversation/{user_id}")
-async def clear_conversation(user_id: str):
-    """Clear conversation history for a user and flush remaining data"""
-    try:
-        # Flush any remaining data before clearing
-        if user_id in user_conversations and len(user_conversations[user_id]) > 0:
-            await asyncio.sleep(0.1)
-            openai_client.flush(user_id)
+def create_agent_for_mode(mode, user_id):
+    """Create agent based on mode"""
+    if mode in ["2", "3", "4"]:
+        agent_kwargs = {
+            "mb_client": mb_client,
+            "llm_api_key": os.getenv('llm_api_key'),
+            "llm_base_url": "https://api.openai.com/v1/",
+            "model": MODEL,
+            "max_profile_tokens": 1000,
+            "temperature": 0.7,
+        }
         
-        # Clear local conversation history
-        if user_id in user_conversations:
-            user_conversations[user_id] = []
-            user_conversation_counts[user_id] = 0
+        if mode == "3":  # Semantic
+            agent_kwargs.update({
+                "rag_mode": "semantic",
+                "qdrant_url": QDRANT_URL,
+                "qdrant_api_key": QDRANT_API_KEY,
+                "qdrant_collection_name": COLLECTION_NAME,
+            })
+        elif mode == "4":  # Reasoning
+            doc_ids = [
+                "pi-cmj8en8v103mw0dqx5nz1p9a2",
+                "pi-cmj8enxzm03no0dqx054d1y93",
+                "pi-cmj8eoruv03on0dqxxok4cf88",
+                "pi-cmj8eplpc03p90dqxwrv0qpqe"
+            ]
+            agent_kwargs.update({
+                "rag_mode": "reasoning",
+                "pageindex_api_key": PAGEINDEX_API_KEY,
+                "pageindex_doc_ids": doc_ids,
+            })
         
-        return {"status": "success", "message": "Conversation cleared and memory flushed"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to clear conversation: {str(e)}")
+        return create_memobase_agent(**agent_kwargs)
+    return None
 
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "service": "memobase-chat-demo"}
+def stream_openai_response(prompt, user_id):
+    """Stream response from OpenAI"""
+    # Add to conversation history
+    st.session_state.conversation_history.append({"role": "user", "content": prompt})
+    
+    # Keep only last BUFFER_SIZE messages
+    if len(st.session_state.conversation_history) > BUFFER_SIZE * 2:
+        st.session_state.conversation_history = st.session_state.conversation_history[-BUFFER_SIZE*2:]
+    
+    # Get streaming response
+    response = openai_client.chat.completions.create(
+        messages=st.session_state.conversation_history,
+        model=MODEL,
+        stream=True,
+        user_id=user_id,
+    )
+    
+    full_response = ""
+    for chunk in response:
+        if chunk.choices[0].delta.content:
+            content = chunk.choices[0].delta.content
+            full_response += content
+            yield content
+    
+    # Add to history
+    st.session_state.conversation_history.append({"role": "assistant", "content": full_response})
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+def stream_agent_response(agent, prompt, user_id):
+    """Stream response from agent"""
+    for chunk in agent.chat_stream(user_id, prompt, verbose=False):
+        yield chunk
+
+# Sidebar
+with st.sidebar:
+    st.markdown(f"# 🚗 {st.session_state.assistant_name}")
+    st.markdown("### Choose Your Mode")
+    
+    mode = st.radio(
+        "Select demo mode:",
+        ["1", "2", "3", "4", "5"],
+        format_func=lambda x: f"{get_mode_info(x)['icon']} {get_mode_info(x)['name']}",
+        key="mode_selector"
+    )
+    
+    # Check if mode changed
+    if mode != st.session_state.mode:
+        st.session_state.mode = mode
+        st.session_state.messages = []
+        st.session_state.conversation_history = []
+        st.session_state.agent = create_agent_for_mode(mode, st.session_state.user_id)
+        st.session_state.assistant_name = "ViVi Assistant"  # Reset to default name
+        st.rerun()
+    
+    st.markdown("---")
+    
+    # Mode info
+    mode_info = get_mode_info(mode)
+    st.markdown(f"<div class='mode-badge {mode_info['badge']}'>{st.session_state.assistant_name}</div>", unsafe_allow_html=True)
+    st.caption(f"{mode_info['icon']} {mode_info['name']}")
+    
+    st.markdown("---")
+    
+    # User info
+    st.markdown("### 👤 User Settings")
+    
+    # User ID input (editable)
+    new_user_id = st.text_input("User ID:", value=st.session_state.user_id, key="user_id_input")
+    
+    # Check if user ID changed
+    if new_user_id != st.session_state.user_id:
+        st.session_state.user_id = new_user_id
+        st.session_state.messages = []
+        st.session_state.conversation_history = []
+        st.session_state.agent = create_agent_for_mode(st.session_state.mode, new_user_id)
+        st.success(f"✅ Switched to user: {new_user_id}")
+    
+    # Assistant name input (editable)
+    new_assistant_name = st.text_input("Assistant Name:", value=st.session_state.assistant_name, key="assistant_name_input")
+    
+    # Check if assistant name changed
+    if new_assistant_name != st.session_state.assistant_name:
+        st.session_state.assistant_name = new_assistant_name
+        st.success(f"✅ Assistant renamed to: {new_assistant_name}")
+    
+    st.markdown("---")
+    
+    # Actions
+    st.markdown("### ⚙️ Actions")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🗑️ Clear Chat", use_container_width=True):
+            st.session_state.messages = []
+            st.session_state.conversation_history = []
+            st.rerun()
+    
+    with col2:
+        if st.button("💾 Flush", use_container_width=True):
+            if st.session_state.agent:
+                st.session_state.agent.flush(st.session_state.user_id)
+                st.session_state.agent.refresh_profile(st.session_state.user_id)
+            else:
+                openai_client.flush(st.session_state.user_id)
+            st.success("✅ Flushed!")
+    
+    if st.button("📚 View Profile", use_container_width=True):
+        with st.spinner("Loading profile..."):
+            if st.session_state.agent:
+                profile = st.session_state.agent.get_profile(st.session_state.user_id)
+            else:
+                profile = openai_client.get_memory_prompt(st.session_state.user_id)
+            
+            with st.expander("📋 Current Profile", expanded=True):
+                st.text(profile if profile else "[No profile available]")
+    
+    st.markdown("---")
+    st.caption("🔋 Powered by MemoBase + VinFast")
+
+# Main content
+mode_info = get_mode_info(st.session_state.mode)
+
+# Header
+col1, col2, col3 = st.columns([2, 3, 2])
+with col2:
+    st.markdown(f"# {st.session_state.assistant_name}")
+    # st.markdown(f"<p style='text-align: center; color: var(--text-secondary);'>{mode_info['description']}</p>", unsafe_allow_html=True)
+
+st.markdown("---")
+
+# Special handling for mode 5 and 6
+if st.session_state.mode == "5":
+    # Profile Search Demo
+    st.markdown("### 👤 Search Event Profile Demo")
+    
+    query = st.text_input("Enter search query:", "My occupation is a software engineer")
+    
+    if st.button("🔍 Search", type="primary"):
+        with st.spinner("Searching..."):
+            u = mb_client.get_or_create_user(string_to_uuid(st.session_state.user_id))
+            
+            chats = [{"role": "user", "content": query}]
+            
+            # Run in parallel
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                search_future = executor.submit(u.search_event, query=query)
+                profile_future = executor.submit(u.profile, chats=chats)
+                
+                search_result = search_future.result()
+                profile_result = profile_future.result()
+            
+            # Format profile
+            profile_string = "\n".join([
+                f"{p.topic}::{p.sub_topic}::{p.content}" 
+                for p in profile_result
+            ])
+            
+            # Display results
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                with st.expander("📅 Events", expanded=True):
+                    st.text(search_result if search_result else "[No events found]")
+            
+            with col2:
+                with st.expander("👤 Profile", expanded=True):
+                    st.text(profile_string if profile_string else "[No profile data]")
+
+
+
+else:
+    # Chat modes (1, 2, 3, 4)
+    
+    # Initialize agent if needed
+    if st.session_state.mode in ["2", "3", "4"] and st.session_state.agent is None:
+        st.session_state.agent = create_agent_for_mode(st.session_state.mode, st.session_state.user_id)
+    
+    # Display chat messages
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+    
+    # Chat input
+    if prompt := st.chat_input("Message ViVi..."):
+        # Add user message
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        # Generate response
+        with st.chat_message("assistant"):
+            response_placeholder = st.empty()
+            full_response = ""
+            
+            if st.session_state.mode == "1":
+                # OpenAI streaming
+                for chunk in stream_openai_response(prompt, st.session_state.user_id):
+                    full_response += chunk
+                    response_placeholder.markdown(full_response + "▌")
+            else:
+                # Agent streaming
+                for chunk in stream_agent_response(st.session_state.agent, prompt, st.session_state.user_id):
+                    full_response += chunk
+                    response_placeholder.markdown(full_response + "▌")
+            
+            response_placeholder.markdown(full_response)
+        
+        # Add assistant response to messages
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
+
 
