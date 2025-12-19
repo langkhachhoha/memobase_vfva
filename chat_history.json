@@ -1,46 +1,24 @@
 {
-  "20251219_120725": {
-    "title": "Cách bảo dưỡng xe VinFast định kỳ",
-    "messages": [],
-    "created_at": "2025-12-19T12:07:25.911400"
-  },
-  "20251219_120729": {
-    "title": "Các tính năng an toàn trên VinFast VF8",
-    "messages": [],
-    "created_at": "2025-12-19T12:07:29.513810"
-  },
-  "20251219_120736": {
-    "title": "Các tính năng an toàn trên VinFast VF8",
-    "messages": [],
-    "created_at": "2025-12-19T12:07:36.630963"
-  },
-  "20251219_120747": {
-    "title": "Hướng dẫn sử dụng tính năng ACC của VinFast",
+  "20251219_184725": {
+    "title": "Xin chào ",
     "messages": [
       {
         "role": "user",
-        "content": "Hướng dẫn sử dụng tính năng ACC của VinFast"
+        "content": "Xin chào "
+      },
+      {
+        "role": "assistant",
+        "content": "Chào Hiếu! Hôm nay bạn thế nào? Có điều gì mình có thể giúp bạn không?"
       },
       {
         "role": "user",
-        "content": "hello"
-      }
-    ],
-    "created_at": "2025-12-19T12:07:47.161316"
-  },
-  "20251219_121100": {
-    "title": "Tôi đói quá, có gì ăn được không nhỉ",
-    "messages": [
+        "content": "Không"
+      },
       {
-        "role": "user",
-        "content": "Tôi đói quá, có gì ăn được không nhỉ"
+        "role": "assistant",
+        "content": "Không sao đâu! Nếu bạn cần bất kỳ sự trợ giúp nào trong tương lai, đừng ngại liên hệ với mình nha. Chúc bạn có một ngày thật tốt lành!"
       }
     ],
-    "created_at": "2025-12-19T12:11:00.797994"
-  },
-  "20251219_121131": {
-    "title": "Cuộc trò chuyện mới",
-    "messages": [],
-    "created_at": "2025-12-19T12:11:31.558958"
+    "created_at": "2025-12-19T18:47:25.966233"
   }
 }

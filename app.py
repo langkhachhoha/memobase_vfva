@@ -188,17 +188,34 @@ st.markdown("""
         font-weight: 400;
         color: #E3E3E3;
         margin-bottom: 1rem;
-        background: linear-gradient(90deg, #8AB4F8 0%, #A8C7FA 50%, #8AB4F8 100%);
+        background: linear-gradient(90deg, #8AB4F8 0%, #A8C7FA 30%, #E5E4E2 50%, #A8C7FA 70%, #8AB4F8 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
-        animation: gradient 3s ease infinite;
+        animation: shimmer 3s ease-in-out infinite, fadeInDown 0.8s ease-out;
         background-size: 200% auto;
     }
     
-    @keyframes gradient {
-        0%, 100% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
+    @keyframes shimmer {
+        0%, 100% { 
+            background-position: 0% 50%;
+            filter: brightness(1);
+        }
+        50% { 
+            background-position: 100% 50%;
+            filter: brightness(1.2);
+        }
+    }
+    
+    @keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     
     .welcome-subtitle {
@@ -206,9 +223,21 @@ st.markdown("""
         color: #C4C4C4;
         font-weight: 400;
         margin-bottom: 4rem;
+        animation: fadeInUp 0.8s ease-out 0.2s both;
     }
     
-    /* Suggestion cards - Platinum theme */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Suggestion cards - Platinum theme with animations */
     .suggestion-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
@@ -223,14 +252,46 @@ st.markdown("""
         border-radius: 16px;
         padding: 20px;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         text-align: left;
         position: relative;
         overflow: hidden;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        animation: fadeInScale 0.6s ease-out both;
+    }
+    
+    .suggestion-card:nth-child(1) { animation-delay: 0.3s; }
+    .suggestion-card:nth-child(2) { animation-delay: 0.4s; }
+    .suggestion-card:nth-child(3) { animation-delay: 0.5s; }
+    .suggestion-card:nth-child(4) { animation-delay: 0.6s; }
+    
+    @keyframes fadeInScale {
+        from {
+            opacity: 0;
+            transform: scale(0.9) translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
     }
     
     .suggestion-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(229, 228, 226, 0.2), transparent);
+        transition: left 0.5s ease;
+    }
+    
+    .suggestion-card:hover::before {
+        left: 100%;
+    }
+    
+    .suggestion-card::after {
         content: '';
         position: absolute;
         top: 0;
@@ -239,18 +300,22 @@ st.markdown("""
         bottom: 0;
         background: linear-gradient(135deg, rgba(229, 228, 226, 0.1) 0%, transparent 100%);
         opacity: 0;
-        transition: opacity 0.3s ease;
+        transition: opacity 0.4s ease;
     }
     
     .suggestion-card:hover {
         background: linear-gradient(135deg, rgba(229, 228, 226, 0.08) 0%, rgba(255, 255, 255, 0.05) 100%);
         border-color: rgba(229, 228, 226, 0.4);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(229, 228, 226, 0.15);
+        transform: translateY(-4px) scale(1.02);
+        box-shadow: 0 8px 24px rgba(229, 228, 226, 0.2), 0 0 40px rgba(138, 180, 248, 0.1);
     }
     
-    .suggestion-card:hover::before {
+    .suggestion-card:hover::after {
         opacity: 1;
+    }
+    
+    .suggestion-card:active {
+        transform: translateY(-2px) scale(0.98);
     }
     
     .suggestion-text {
@@ -260,7 +325,7 @@ st.markdown("""
         font-weight: 400;
     }
     
-    /* Chat container with platinum border */
+    /* Chat container with platinum border and animation */
     .chat-container {
         border: 1.5px solid rgba(229, 228, 226, 0.2);
         border-radius: 24px;
@@ -268,13 +333,59 @@ st.markdown("""
         background: linear-gradient(135deg, rgba(229, 228, 226, 0.02) 0%, rgba(255, 255, 255, 0.01) 100%);
         box-shadow: 0 4px 24px rgba(229, 228, 226, 0.1);
         margin-bottom: 2rem;
+        animation: containerFadeIn 0.6s ease-out;
+        position: relative;
+        overflow: hidden;
     }
     
-    /* Chat messages */
+    @keyframes containerFadeIn {
+        from {
+            opacity: 0;
+            transform: scale(0.98);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+    
+    .chat-container::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(45deg, transparent, rgba(229, 228, 226, 0.03), transparent);
+        animation: shine 3s ease-in-out infinite;
+    }
+    
+    @keyframes shine {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+    
+    /* Chat messages with animation */
     .stChatMessage {
         background: transparent !important;
         padding: 1.5rem 0 !important;
         max-width: 100%;
+        animation: messageSlideIn 0.4s ease-out;
+    }
+    
+    @keyframes messageSlideIn {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
     }
     
     .stChatMessage > div {
@@ -284,11 +395,43 @@ st.markdown("""
     .stChatMessage [data-testid="chatAvatarIcon-user"] {
         background: rgba(138, 180, 248, 0.2);
         color: #8AB4F8;
+        animation: avatarPulse 0.5s ease-out;
+    }
+    
+    .stChatMessage [data-testid="chatAvatarIcon-user"]::before {
+        content: "👤";
+        font-size: 20px;
     }
     
     .stChatMessage [data-testid="chatAvatarIcon-assistant"] {
         background: transparent;
         color: #8AB4F8;
+        animation: avatarPulse 0.5s ease-out;
+    }
+    
+    .stChatMessage [data-testid="chatAvatarIcon-assistant"]::before {
+        content: "🤖";
+        font-size: 20px;
+    }
+    
+    /* Hide default avatar content */
+    .stChatMessage [data-testid="chatAvatarIcon-user"] > *,
+    .stChatMessage [data-testid="chatAvatarIcon-assistant"] > * {
+        display: none;
+    }
+    
+    @keyframes avatarPulse {
+        0% {
+            transform: scale(0.8);
+            opacity: 0;
+        }
+        50% {
+            transform: scale(1.1);
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
     }
     
     /* Message content */
@@ -298,7 +441,7 @@ st.markdown("""
         line-height: 1.6;
     }
     
-    /* Chat input - Fixed at bottom */
+    /* Chat input - Fixed at bottom with animation */
     .stChatInputContainer {
         position: fixed;
         bottom: 0;
@@ -308,6 +451,18 @@ st.markdown("""
         border-top: none !important;
         padding: 2rem 0 2rem 0 !important;
         z-index: 100;
+        animation: slideUp 0.5s ease-out;
+    }
+    
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     
     .stChatInputContainer > div {
@@ -321,6 +476,7 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.15) !important;
         border-radius: 28px !important;
         backdrop-filter: blur(10px);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .stChatInput input {
@@ -332,7 +488,8 @@ st.markdown("""
     
     .stChatInput:focus-within > div {
         border-color: rgba(138, 180, 248, 0.5) !important;
-        box-shadow: 0 0 0 2px rgba(138, 180, 248, 0.1) !important;
+        box-shadow: 0 0 0 3px rgba(138, 180, 248, 0.15), 0 4px 20px rgba(138, 180, 248, 0.2) !important;
+        transform: translateY(-2px);
     }
     
     /* Buttons - Platinum style */
@@ -466,7 +623,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Configuration
-MODEL = "gpt-4o-mini"
+MODEL = "gpt-4o"
 HISTORY_FILE = Path(__file__).parent / "chat_history.json"
 
 # Initialize clients
@@ -494,6 +651,12 @@ if "assistant_name" not in st.session_state:
     st.session_state.assistant_name = "ViVi"
 if "agent" not in st.session_state:
     st.session_state.agent = None
+if "show_profile_modal" not in st.session_state:
+    st.session_state.show_profile_modal = False
+if "profile_action" not in st.session_state:
+    st.session_state.profile_action = None  # 'add' or 'update'
+if "selected_profile_id" not in st.session_state:
+    st.session_state.selected_profile_id = None
 
 # Helper functions
 def create_agent(user_id):
@@ -556,6 +719,210 @@ def stream_agent_response(agent, prompt, user_id):
     for chunk in agent.chat_stream(user_id, prompt, verbose=False):
         yield chunk
 
+@st.dialog("👤 Hồ Sơ Người Dùng", width="large")
+def show_profile_dialog():
+    """Display user profile in a modal dialog"""
+    user = mb_client.get_or_create_user(string_to_uuid(st.session_state.user_id))
+    
+    # Get profile
+    profiles = user.profile()
+    
+    # Tabs for different actions
+    tab1, tab2, tab3 = st.tabs(["📋 Xem Hồ Sơ", "➕ Thêm Mới", "✏️ Cập Nhật"])
+    
+    with tab1:
+        st.markdown("### 📊 Thông Tin Hồ Sơ")
+        
+        if not profiles:
+            st.info("Chưa có thông tin hồ sơ")
+        else:
+            # Group profiles by topic
+            topics_dict = {}
+            for profile in profiles:
+                topic = profile.topic
+                if topic not in topics_dict:
+                    topics_dict[topic] = []
+                topics_dict[topic].append(profile)
+            
+            # Display profiles grouped by topic
+            for topic, topic_profiles in topics_dict.items():
+                with st.expander(f"📁 **{topic.upper()}**", expanded=True):
+                    for profile in topic_profiles:
+                        col1, col2 = st.columns([4, 1])
+                        
+                        with col1:
+                            st.markdown(f"""
+                            <div style='background: rgba(229, 228, 226, 0.05); 
+                                        border-left: 3px solid #8AB4F8; 
+                                        padding: 12px 16px; 
+                                        border-radius: 8px;
+                                        margin: 8px 0;'>
+                                <div style='color: #8AB4F8; font-size: 12px; font-weight: 600; margin-bottom: 4px;'>
+                                    {profile.sub_topic}
+                                </div>
+                                <div style='color: #E3E3E3; font-size: 14px; line-height: 1.5;'>
+                                    {profile.content}
+                                </div>
+                                <div style='color: #888; font-size: 11px; margin-top: 8px;'>
+                                    🆔 {str(profile.id)[:8]}... | 📅 {profile.updated_at.strftime('%Y-%m-%d %H:%M')}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with col2:
+                            if st.button("✏️", key=f"edit_{profile.id}", help="Chỉnh sửa"):
+                                st.session_state.profile_action = 'update'
+                                st.session_state.selected_profile_id = str(profile.id)
+                                st.rerun()
+    
+    with tab2:
+        st.markdown("### ➕ Thêm Thông Tin Mới")
+        
+        with st.form("add_profile_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                new_topic = st.text_input(
+                    "📁 Topic",
+                    placeholder="Ví dụ: interest, work, basic_info...",
+                    help="Chủ đề chính của thông tin"
+                )
+            
+            with col2:
+                new_sub_topic = st.text_input(
+                    "📂 Sub Topic",
+                    placeholder="Ví dụ: programming, hobbies...",
+                    help="Chủ đề phụ"
+                )
+            
+            new_content = st.text_area(
+                "📝 Content",
+                placeholder="Nhập nội dung thông tin...",
+                height=100,
+                help="Nội dung chi tiết"
+            )
+            
+            submitted = st.form_submit_button("✅ Thêm Hồ Sơ", use_container_width=True)
+            
+            if submitted:
+                if new_topic and new_sub_topic and new_content:
+                    try:
+                        user.add_profile(
+                            content=new_content,
+                            topic=new_topic,
+                            sub_topic=new_sub_topic
+                        )
+                        st.success("✅ Đã thêm thông tin thành công!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Lỗi: {str(e)}")
+                else:
+                    st.warning("⚠️ Vui lòng điền đầy đủ thông tin")
+    
+    with tab3:
+        st.markdown("### ✏️ Cập Nhật Thông Tin")
+        
+        if not profiles:
+            st.info("Chưa có thông tin để cập nhật")
+        else:
+            # Create a mapping of display text to profile
+            profile_options = {}
+            for profile in profiles:
+                display_text = f"{profile.topic} > {profile.sub_topic}: {profile.content[:50]}..."
+                profile_options[display_text] = profile
+            
+            selected_display = st.selectbox(
+                "Chọn thông tin cần cập nhật:",
+                options=list(profile_options.keys()),
+                help="Chọn một mục để cập nhật"
+            )
+            
+            if selected_display:
+                selected_profile = profile_options[selected_display]
+                
+                st.markdown(f"""
+                <div style='background: rgba(138, 180, 248, 0.1); 
+                            border: 1px solid rgba(138, 180, 248, 0.3);
+                            padding: 12px; 
+                            border-radius: 8px; 
+                            margin: 16px 0;'>
+                    <div style='color: #8AB4F8; font-size: 12px; font-weight: 600;'>
+                        Thông tin hiện tại:
+                    </div>
+                    <div style='color: #E3E3E3; margin-top: 8px;'>
+                        <strong>Topic:</strong> {selected_profile.topic}<br>
+                        <strong>Sub Topic:</strong> {selected_profile.sub_topic}<br>
+                        <strong>Content:</strong> {selected_profile.content}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                with st.form("update_profile_form"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        update_topic = st.text_input(
+                            "📁 Topic",
+                            value=selected_profile.topic,
+                            help="Chủ đề chính"
+                        )
+                    
+                    with col2:
+                        update_sub_topic = st.text_input(
+                            "📂 Sub Topic",
+                            value=selected_profile.sub_topic,
+                            help="Chủ đề phụ"
+                        )
+                    
+                    update_content = st.text_area(
+                        "📝 Content",
+                        value=selected_profile.content,
+                        height=100,
+                        help="Nội dung chi tiết"
+                    )
+                    
+                    col_btn1, col_btn2 = st.columns(2)
+                    
+                    with col_btn1:
+                        update_submitted = st.form_submit_button(
+                            "💾 Lưu Thay Đổi",
+                            use_container_width=True
+                        )
+                    
+                    with col_btn2:
+                        delete_submitted = st.form_submit_button(
+                            "🗑️ Xóa",
+                            use_container_width=True,
+                            type="secondary"
+                        )
+                    
+                    if update_submitted:
+                        if update_topic and update_sub_topic and update_content:
+                            try:
+                                user.update_profile(
+                                    profile_id=str(selected_profile.id),
+                                    content=update_content,
+                                    topic=update_topic,
+                                    sub_topic=update_sub_topic
+                                )
+                                st.success("✅ Đã cập nhật thành công!")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {str(e)}")
+                        else:
+                            st.warning("⚠️ Vui lòng điền đầy đủ thông tin")
+                    
+                    if delete_submitted:
+                        try:
+                            user.delete_profile(profile_id=str(selected_profile.id))
+                            st.success("✅ Đã xóa thành công!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Lỗi: {str(e)}")
+
 # Load chat history
 if not st.session_state.chat_sessions:
     st.session_state.chat_sessions = load_chat_history()
@@ -568,9 +935,33 @@ if st.session_state.agent is None:
 with st.sidebar:
     # New chat button
     st.markdown("""
-        <div style='padding: 1rem 0;'>
-            <div style='font-size: 24px; font-weight: 500; color: #E3E3E3; margin-bottom: 1rem;'>
-                🚗 ViVi Assistant
+        <div style='padding: 1.5rem 0; text-align: center;'>
+            <div style='font-size: 32px; font-weight: 700; 
+                        margin-bottom: 0.5rem;
+                        letter-spacing: 2px;'>
+                <span style='font-size: 36px;'>🚙</span>
+                <span style='background: linear-gradient(135deg, #8AB4F8 0%, #4A9EFF 50%, #2D7DD2 100%);
+                             -webkit-background-clip: text;
+                             -webkit-text-fill-color: transparent;
+                             background-clip: text;
+                             text-shadow: 0 0 30px rgba(138, 180, 248, 0.3);'>
+                    ViVi
+                </span>
+                <span style='font-size: 36px;'>🚙</span>
+            </div>
+            <div style='font-size: 12px; 
+                        color: #8AB4F8; 
+                        font-weight: 500;
+                        letter-spacing: 3px;
+                        text-transform: uppercase;
+                        opacity: 0.8;'>
+                VinFast AI Assistant
+            </div>
+            <div style='width: 60px; 
+                        height: 3px; 
+                        background: linear-gradient(90deg, transparent, #8AB4F8, transparent);
+                        margin: 1rem auto 0;
+                        border-radius: 2px;'>
             </div>
         </div>
     """, unsafe_allow_html=True)
@@ -652,9 +1043,8 @@ with st.sidebar:
                 st.success("✅ Đã lưu!")
         
         with col2:
-            if st.button("📚 Xem hồ sơ", use_container_width=True):
-                profile = st.session_state.agent.get_profile(st.session_state.user_id)
-                st.text_area("Hồ sơ người dùng:", profile if profile else "[Chưa có dữ liệu]", height=200)
+            if st.button("👤 Xem hồ sơ", use_container_width=True):
+                show_profile_dialog()
 
 # Main content
 if not st.session_state.messages:
@@ -668,7 +1058,7 @@ if not st.session_state.messages:
     
     # Suggestion cards in grid
     suggestions = [
-        {"text": "Hôm nay ăn gì được?"},
+        {"text": "Trời bắt đầu lạnh rồi, hôm nay ăn gì được nhỉ?"},
         {"text": "Hãy cho list nhạc để qua được mùa đông cô đơn này"},
         {"text": "Hãy cho tôi list những địa điểm đáng để đến trong năm 2026"},
         {"text": "Làm sao để thiết kế AI Agent hiệu quả hơn?"},
@@ -685,14 +1075,51 @@ if not st.session_state.messages:
                 use_container_width=True
             ):
                 # Create new session if needed
+                prompt = suggestion["text"]
                 if st.session_state.current_session_id is None:
                     create_new_session()
                 
                 # Add suggestion as user message
-                st.session_state.messages.append({"role": "user", "content": suggestion['text']})
+                st.session_state.messages.append({"role": "user", "content": prompt})
                 
                 # Update session title
-                update_session_title(st.session_state.current_session_id, suggestion['text'])
+                update_session_title(st.session_state.current_session_id, prompt)
+                
+                # Save to session
+                st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages
+                save_chat_history()
+                # st.rerun()
+                
+                # Generate response immediately
+                # with st.chat_message("user"):
+                #     st.markdown(prompt)
+                
+                with st.chat_message("assistant"):
+                    response_placeholder = st.empty()
+                    full_response = ""
+                    
+                    # Show typing indicator
+                    response_placeholder.markdown("""
+                        <div class='typing-indicator'>
+                            <div class='typing-dot'></div>
+                            <div class='typing-dot'></div>
+                            <div class='typing-dot'></div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Stream response
+                    for chunk in stream_agent_response(st.session_state.agent, prompt, st.session_state.user_id):
+                        full_response += chunk
+                    #     response_placeholder.markdown(full_response + "▌")
+                    
+                    # response_placeholder.markdown(full_response)
+                
+                # Add assistant response to messages
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                
+                # Save to session
+                st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages
+                save_chat_history()
                 
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)

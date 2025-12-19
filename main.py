@@ -353,36 +353,10 @@ def demo_agent_single_query():
 
 
 if __name__ == "__main__":
-    import sys
-    
-    # Choose demo mode
-    if len(sys.argv) > 1:
-        mode = sys.argv[1]
-    else:
-        print("\n" + "="*60)
-        print("🎯 SELECT DEMO MODE")
-        print("="*60)
-        print("1. Interactive Chat (original OpenAI)")
-        print("2. Interactive Agent (LangChain, no RAG)")
-        print("3. Interactive Agent (Option 1: Semantic Search - Qdrant)")
-        print("4. Interactive Agent (Option 2: Logical Reasoning - PageIndex)")
-        print("5. Single Query Demo (Agent)")
-        print("6. Search Event Profile Demo")
-        print("="*60)
-        mode = input("\nEnter mode (1-6): ").strip()
-    
-    if mode == "1":
-        chat_interactive()
-    elif mode == "2":
-        demo_agent_interactive(rag_mode=None)
-    elif mode == "3":
-        demo_agent_interactive(rag_mode="semantic")
-    elif mode == "4":
-        demo_agent_interactive(rag_mode="reasoning")
-    elif mode == "5":
-        demo_agent_single_query()
-    elif mode == "6":
-        demo_search_event_profile()
-    else:
-        print("❌ Invalid mode. Using default: Interactive Agent (no RAG)")
-        demo_agent_interactive(rag_mode=None)
+    from rich import print as rprint
+    from memobase.utils import string_to_uuid
+    # rprint(u.profile())
+    # print("--------------------------------")
+    u.add_profile(content="Hieu prefer to use Python for programming", topic="interest", sub_topic="programming language")
+    u.update_profile(profile_id="871a8363-87a0-4eee-9198-25fcfeb75ca5",content="Hieu prefer to use C++ for programming", topic="interest", sub_topic="programming language")
+    rprint(u.profile())
