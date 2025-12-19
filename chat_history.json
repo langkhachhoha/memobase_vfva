@@ -1,0 +1,46 @@
+{
+  "20251219_120725": {
+    "title": "Cách bảo dưỡng xe VinFast định kỳ",
+    "messages": [],
+    "created_at": "2025-12-19T12:07:25.911400"
+  },
+  "20251219_120729": {
+    "title": "Các tính năng an toàn trên VinFast VF8",
+    "messages": [],
+    "created_at": "2025-12-19T12:07:29.513810"
+  },
+  "20251219_120736": {
+    "title": "Các tính năng an toàn trên VinFast VF8",
+    "messages": [],
+    "created_at": "2025-12-19T12:07:36.630963"
+  },
+  "20251219_120747": {
+    "title": "Hướng dẫn sử dụng tính năng ACC của VinFast",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hướng dẫn sử dụng tính năng ACC của VinFast"
+      },
+      {
+        "role": "user",
+        "content": "hello"
+      }
+    ],
+    "created_at": "2025-12-19T12:07:47.161316"
+  },
+  "20251219_121100": {
+    "title": "Tôi đói quá, có gì ăn được không nhỉ",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Tôi đói quá, có gì ăn được không nhỉ"
+      }
+    ],
+    "created_at": "2025-12-19T12:11:00.797994"
+  },
+  "20251219_121131": {
+    "title": "Cuộc trò chuyện mới",
+    "messages": [],
+    "created_at": "2025-12-19T12:11:31.558958"
+  }
+}

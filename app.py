@@ -1,6 +1,6 @@
 """
-Streamlit App for Memobase + VinFast Assistant
-Modern UI with 5 different demo modes
+ViVi - VinFast AI Assistant
+Gemini-inspired Modern UI with Streamlit
 """
 
 import sys
@@ -11,19 +11,11 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 from memobase import MemoBaseClient
-from openai import OpenAI
-from memobase.patch.openai import openai_memory
 from memobase.utils import string_to_uuid
 from memobase.patch.Agent import create_memobase_agent
-from memobase.patch.config import (
-    QDRANT_URL, QDRANT_API_KEY, COLLECTION_NAME,
-    PAGEINDEX_API_KEY
-)
-from concurrent.futures import ThreadPoolExecutor
-from rich import print as rprint
 import time
-import base64
-from pathlib import Path
+import json
+from datetime import datetime
 
 load_dotenv()
 
@@ -31,137 +23,345 @@ load_dotenv()
 st.set_page_config(
     page_title="ViVi - VinFast AI Assistant",
     page_icon="🚗",
-    layout="wide",
+    layout="centered",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for modern, beautiful UI
+# Custom CSS - Gemini-inspired design
 st.markdown("""
 <style>
-    /* Main theme colors */
-    :root {
-        --primary-color: #0066FF;
-        --secondary-color: #00D4FF;
-        --background-dark: #0A0E27;
-        --background-light: #1A1F3A;
-        --text-primary: #FFFFFF;
-        --text-secondary: #B4B9D3;
-        --accent-purple: #8B5CF6;
-        --accent-green: #10B981;
+    /* Import Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
+    
+    /* Global styles */
+    * {
+        font-family: 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Main background */
+    .main {
+        background: linear-gradient(135deg, #0A0E27 0%, #1A1F3A 50%, #0A0E27 100%);
+        padding: 0;
     }
     
     /* Sidebar styling */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0A0E27 0%, #1A1F3A 100%);
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        background: #1E1E1E !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+        padding-top: 1rem !important;
+        min-width: 280px !important;
     }
     
-    [data-testid="stSidebar"] h1 {
-        color: var(--secondary-color);
-        text-align: center;
-        font-size: 2rem;
-        margin-bottom: 1rem;
-        text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    [data-testid="stSidebar"] > div:first-child {
+        background: #1E1E1E !important;
     }
     
-    /* Radio buttons */
-    .stRadio > label {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: var(--text-primary);
-        margin-bottom: 0.5rem;
+    [data-testid="stSidebar"] .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
     }
     
-    .stRadio > div {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
-        padding: 1rem;
+    /* Force sidebar to show */
+    section[data-testid="stSidebar"] {
+        display: block !important;
+        visibility: visible !important;
     }
     
-    .stRadio > div > label {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 8px;
-        padding: 0.8rem 1rem;
-        margin: 0.3rem 0;
+    /* New chat button */
+    .new-chat-btn {
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 24px;
+        padding: 12px 24px;
+        color: #E3E3E3;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
         transition: all 0.3s ease;
+        margin-bottom: 1rem;
+        width: 100%;
+        text-align: left;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .new-chat-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+    
+    /* Chat history items - compact */
+    .chat-history-item {
+        background: transparent;
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin: 2px 0;
+        color: #C4C4C4;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
         border: 1px solid transparent;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
     }
     
-    .stRadio > div > label:hover {
-        background: rgba(0, 212, 255, 0.1);
-        border: 1px solid var(--secondary-color);
-        transform: translateX(5px);
+    .chat-history-item:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #E3E3E3;
     }
     
-    /* Main content area */
-    .main {
-        background: linear-gradient(135deg, #0A0E27 0%, #1A1F3A 100%);
+    .chat-history-item.active {
+        background: rgba(138, 180, 248, 0.15);
+        color: #8AB4F8;
+        border-color: rgba(138, 180, 248, 0.3);
     }
     
-    /* Headers */
-    h1 {
-        color: var(--text-primary);
-        font-weight: 700;
-        background: linear-gradient(90deg, #0066FF 0%, #00D4FF 100%);
+    /* Compact buttons in sidebar - no border */
+    [data-testid="stSidebar"] .stButton > button {
+        padding: 8px 12px;
+        font-size: 12px;
+        border-radius: 8px;
+        min-height: auto;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        color: #C4C4C4;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #E3E3E3;
+    }
+    
+    [data-testid="stSidebar"] .stButton > button[kind="primary"] {
+        background: rgba(138, 180, 248, 0.15);
+        color: #8AB4F8;
+        border: none;
+    }
+    
+    [data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
+        background: rgba(138, 180, 248, 0.2);
+    }
+    
+    [data-testid="stSidebar"] .stButton > button[kind="secondary"] {
+        background: transparent;
+        border: none;
+    }
+    
+    /* Main container with max width */
+    .main .block-container {
+        max-width: 900px;
+        padding-top: 3rem;
+        padding-bottom: 8rem;
+        margin: 0 auto;
+    }
+    
+    /* Ensure sidebar is visible */
+    [data-testid="stSidebar"][aria-expanded="true"] {
+        display: block;
+    }
+    
+    /* Welcome section */
+    .welcome-container {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        min-height: 50vh;
+        padding: 2rem 0;
+    }
+    
+    .welcome-title {
+        font-size: 56px;
+        font-weight: 400;
+        color: #E3E3E3;
+        margin-bottom: 1rem;
+        background: linear-gradient(90deg, #8AB4F8 0%, #A8C7FA 50%, #8AB4F8 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        animation: gradient 3s ease infinite;
+        background-size: 200% auto;
     }
     
-    h2, h3 {
-        color: var(--text-primary);
+    @keyframes gradient {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+    
+    .welcome-subtitle {
+        font-size: 32px;
+        color: #C4C4C4;
+        font-weight: 400;
+        margin-bottom: 4rem;
+    }
+    
+    /* Suggestion cards - Platinum theme */
+    .suggestion-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        width: 100%;
+        margin-bottom: 2rem;
+    }
+    
+    .suggestion-card {
+        background: linear-gradient(135deg, rgba(229, 228, 226, 0.05) 0%, rgba(255, 255, 255, 0.03) 100%);
+        border: 1.5px solid rgba(229, 228, 226, 0.2);
+        border-radius: 16px;
+        padding: 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: left;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .suggestion-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(135deg, rgba(229, 228, 226, 0.1) 0%, transparent 100%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    
+    .suggestion-card:hover {
+        background: linear-gradient(135deg, rgba(229, 228, 226, 0.08) 0%, rgba(255, 255, 255, 0.05) 100%);
+        border-color: rgba(229, 228, 226, 0.4);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(229, 228, 226, 0.15);
+    }
+    
+    .suggestion-card:hover::before {
+        opacity: 1;
+    }
+    
+    .suggestion-text {
+        color: #E5E4E2;
+        font-size: 15px;
+        line-height: 1.5;
+        font-weight: 400;
+    }
+    
+    /* Chat container with platinum border */
+    .chat-container {
+        border: 1.5px solid rgba(229, 228, 226, 0.2);
+        border-radius: 24px;
+        padding: 2rem;
+        background: linear-gradient(135deg, rgba(229, 228, 226, 0.02) 0%, rgba(255, 255, 255, 0.01) 100%);
+        box-shadow: 0 4px 24px rgba(229, 228, 226, 0.1);
+        margin-bottom: 2rem;
     }
     
     /* Chat messages */
     .stChatMessage {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 15px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: transparent !important;
+        padding: 1.5rem 0 !important;
+        max-width: 100%;
     }
     
-    /* Input box */
+    .stChatMessage > div {
+        max-width: 100%;
+    }
+    
+    .stChatMessage [data-testid="chatAvatarIcon-user"] {
+        background: rgba(138, 180, 248, 0.2);
+        color: #8AB4F8;
+    }
+    
+    .stChatMessage [data-testid="chatAvatarIcon-assistant"] {
+        background: transparent;
+        color: #8AB4F8;
+    }
+    
+    /* Message content */
+    .stChatMessage p {
+        color: #E3E3E3;
+        font-size: 16px;
+        line-height: 1.6;
+    }
+    
+    /* Chat input - Fixed at bottom */
     .stChatInputContainer {
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(255, 255, 255, 0.02);
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(to top, #0A0E27 80%, transparent) !important;
+        border-top: none !important;
+        padding: 2rem 0 2rem 0 !important;
+        z-index: 100;
     }
     
-    /* Buttons */
+    .stChatInputContainer > div {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+    
+    .stChatInput > div {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-radius: 28px !important;
+        backdrop-filter: blur(10px);
+    }
+    
+    .stChatInput input {
+        padding: 16px 24px !important;
+        color: #E3E3E3 !important;
+        font-size: 16px !important;
+        background: transparent !important;
+    }
+    
+    .stChatInput:focus-within > div {
+        border-color: rgba(138, 180, 248, 0.5) !important;
+        box-shadow: 0 0 0 2px rgba(138, 180, 248, 0.1) !important;
+    }
+    
+    /* Buttons - Platinum style */
     .stButton > button {
-        background: linear-gradient(90deg, #0066FF 0%, #00D4FF 100%);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        padding: 0.6rem 2rem;
-        font-weight: 600;
+        background: linear-gradient(135deg, rgba(229, 228, 226, 0.05) 0%, rgba(255, 255, 255, 0.03) 100%);
+        border: 1.5px solid rgba(229, 228, 226, 0.2);
+        border-radius: 16px;
+        color: #E5E4E2;
+        padding: 20px;
+        font-weight: 400;
+        font-size: 15px;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(0, 102, 255, 0.3);
+        text-align: left;
+        height: auto;
+        white-space: normal;
+        line-height: 1.5;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
     
     .stButton > button:hover {
+        background: linear-gradient(135deg, rgba(229, 228, 226, 0.08) 0%, rgba(255, 255, 255, 0.05) 100%);
+        border-color: rgba(229, 228, 226, 0.4);
+        color: #FFFFFF;
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5);
+        box-shadow: 0 4px 16px rgba(229, 228, 226, 0.15);
     }
     
-    /* Info boxes */
-    .stAlert {
-        background: rgba(139, 92, 246, 0.1);
-        border: 1px solid var(--accent-purple);
-        border-radius: 10px;
-    }
-    
-    /* Metrics */
-    [data-testid="stMetricValue"] {
-        font-size: 2rem;
-        color: var(--secondary-color);
-    }
-    
-    /* Expander */
-    .streamlit-expanderHeader {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
-        font-weight: 600;
+    .stButton > button:active {
+        transform: translateY(0) scale(0.98);
     }
     
     /* Scrollbar */
@@ -171,439 +371,386 @@ st.markdown("""
     }
     
     ::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.05);
+        background: transparent;
     }
     
     ::-webkit-scrollbar-thumb {
-        background: linear-gradient(180deg, #0066FF 0%, #00D4FF 100%);
+        background: rgba(255, 255, 255, 0.2);
         border-radius: 10px;
     }
     
-    /* Mode badges */
-    .mode-badge {
-        display: inline-block;
-        padding: 0.3rem 1rem;
-        border-radius: 20px;
-        font-size: 0.9rem;
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+    
+    /* Text input styling */
+    .stTextInput > div > div > input {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        color: #E3E3E3;
+        padding: 10px 16px;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: rgba(138, 180, 248, 0.5);
+        box-shadow: 0 0 0 2px rgba(138, 180, 248, 0.1);
+    }
+    
+    /* Labels */
+    .stTextInput > label, .stSelectbox > label {
+        color: #C4C4C4 !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        margin-bottom: 8px !important;
+    }
+    
+    /* Divider */
+    hr {
+        border-color: rgba(255, 255, 255, 0.1);
+        margin: 1rem 0;
+    }
+    
+    /* Typing indicator */
+    .typing-indicator {
+        display: inline-flex;
+        gap: 4px;
+        padding: 8px 0;
+    }
+    
+    .typing-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #8AB4F8;
+        animation: typing 1.4s infinite;
+    }
+    
+    .typing-dot:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+    
+    .typing-dot:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+    
+    @keyframes typing {
+        0%, 60%, 100% {
+            transform: translateY(0);
+            opacity: 0.7;
+        }
+        30% {
+            transform: translateY(-10px);
+            opacity: 1;
+        }
+    }
+    
+    /* Settings section */
+    .settings-section {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        padding: 16px;
+        margin: 16px 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .settings-title {
+        color: #8AB4F8;
+        font-size: 14px;
         font-weight: 600;
-        margin: 0.5rem 0;
-    }
-    
-    .mode-openai {
-        background: linear-gradient(90deg, #10B981 0%, #059669 100%);
-        color: white;
-    }
-    
-    .mode-agent {
-        background: linear-gradient(90deg, #8B5CF6 0%, #7C3AED 100%);
-        color: white;
-    }
-    
-    .mode-semantic {
-        background: linear-gradient(90deg, #0066FF 0%, #00D4FF 100%);
-        color: white;
-    }
-    
-    .mode-reasoning {
-        background: linear-gradient(90deg, #F59E0B 0%, #D97706 100%);
-        color: white;
+        margin-bottom: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # Configuration
 MODEL = "gpt-4o-mini"
-BUFFER_SIZE = 5
-
-# PDF Configuration
-PDF_DIRECTORY = "/Users/apple/VSF/pageindex/document"
-PDF_FILES = {
-    "doc1.pdf": "VinFast VF8 User Manual",
-    "doc2.pdf": "VinFast VF9 User Manual", 
-    "doc3.pdf": "VinFast Safety Guide",
-    "doc4.pdf": "VinFast Maintenance Guide"
-}
+HISTORY_FILE = Path(__file__).parent / "chat_history.json"
 
 # Initialize clients
 @st.cache_resource
 def init_clients():
-    """Initialize MemoBase and OpenAI clients"""
+    """Initialize MemoBase client and agent"""
     mb_client = MemoBaseClient(
         project_url="http://localhost:8019",
         api_key="secret",
     )
-    
-    openai_client = OpenAI(
-        api_key=os.getenv('llm_api_key'), 
-        base_url="https://api.openai.com/v1/"
-    )
-    
-    # Patch OpenAI client with memory
-    openai_client = openai_memory(openai_client, mb_client, max_context_size=1000)
-    
-    return mb_client, openai_client
+    return mb_client
 
-mb_client, openai_client = init_clients()
+mb_client = init_clients()
 
-# Initialize session state
+# Session state initialization
 if "messages" not in st.session_state:
     st.session_state.messages = []
-if "mode" not in st.session_state:
-    st.session_state.mode = "1"
-if "agent" not in st.session_state:
-    st.session_state.agent = None
-if "conversation_history" not in st.session_state:
-    st.session_state.conversation_history = []
+if "chat_sessions" not in st.session_state:
+    st.session_state.chat_sessions = {}
+if "current_session_id" not in st.session_state:
+    st.session_state.current_session_id = None
 if "user_id" not in st.session_state:
     st.session_state.user_id = "langkhachhoha"
 if "assistant_name" not in st.session_state:
-    st.session_state.assistant_name = "ViVi Assistant"
+    st.session_state.assistant_name = "ViVi"
+if "agent" not in st.session_state:
+    st.session_state.agent = None
 
-def get_mode_info(mode):
-    """Get mode information"""
-    modes = {
-        "1": {
-            "name": "OpenAI Chat",
-            "description": "Original OpenAI with memory",
-            "icon": "💬",
-            "badge": "mode-openai",
-            "tools": "None"
-        },
-        "2": {
-            "name": "Agent (No RAG)",
-            "description": "LangChain Agent without RAG",
-            "icon": "🤖",
-            "badge": "mode-agent",
-            "tools": "search_event_profile"
-        },
-        "3": {
-            "name": "Semantic Search",
-            "description": "Vector search with Qdrant",
-            "icon": "🔍",
-            "badge": "mode-semantic",
-            "tools": "search_event_profile, semantic_search"
-        },
-        "4": {
-            "name": "Logical Reasoning",
-            "description": "Tree-based search with PageIndex",
-            "icon": "🧠",
-            "badge": "mode-reasoning",
-            "tools": "search_event_profile, reasoning_search"
-        },
-        "5": {
-            "name": "Profile Search",
-            "description": "Demo search_event_profile",
-            "icon": "👤",
-            "badge": "mode-agent",
-            "tools": "search_event_profile"
-        },
-        "6": {
-            "name": "PDF Viewer",
-            "description": "View VinFast documentation PDFs",
-            "icon": "📄",
-            "badge": "mode-agent",
-            "tools": "None"
-        }
-    }
-    return modes.get(mode, modes["1"])
-
-def display_pdf(pdf_path):
-    """Display PDF file in Streamlit"""
-    try:
-        with open(pdf_path, "rb") as f:
-            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-        
-        pdf_display = f'''
-        <iframe src="data:application/pdf;base64,{base64_pdf}" 
-                width="100%" 
-                height="800" 
-                type="application/pdf"
-                style="border: none; border-radius: 10px;">
-        </iframe>
-        '''
-        st.markdown(pdf_display, unsafe_allow_html=True)
-    except Exception as e:
-        st.error(f"❌ Error loading PDF: {str(e)}")
-
-def get_available_pdfs():
-    """Get list of available PDF files"""
-    pdf_dir = Path(PDF_DIRECTORY)
-    if not pdf_dir.exists():
-        return []
-    
-    available_pdfs = []
-    for pdf_file, title in PDF_FILES.items():
-        pdf_path = pdf_dir / pdf_file
-        if pdf_path.exists():
-            available_pdfs.append((pdf_file, title, str(pdf_path)))
-    
-    return available_pdfs
-
-def create_agent_for_mode(mode, user_id):
-    """Create agent based on mode"""
-    if mode in ["2", "3", "4"]:
-        agent_kwargs = {
-            "mb_client": mb_client,
-            "llm_api_key": os.getenv('llm_api_key'),
-            "llm_base_url": "https://api.openai.com/v1/",
-            "model": MODEL,
-            "max_profile_tokens": 1000,
-            "temperature": 0.7,
-        }
-        
-        if mode == "3":  # Semantic
-            agent_kwargs.update({
-                "rag_mode": "semantic",
-                "qdrant_url": QDRANT_URL,
-                "qdrant_api_key": QDRANT_API_KEY,
-                "qdrant_collection_name": COLLECTION_NAME,
-            })
-        elif mode == "4":  # Reasoning
-            doc_ids = [
-                "pi-cmj8en8v103mw0dqx5nz1p9a2",
-                "pi-cmj8enxzm03no0dqx054d1y93",
-                "pi-cmj8eoruv03on0dqxxok4cf88",
-                "pi-cmj8eplpc03p90dqxwrv0qpqe"
-            ]
-            agent_kwargs.update({
-                "rag_mode": "reasoning",
-                "pageindex_api_key": PAGEINDEX_API_KEY,
-                "pageindex_doc_ids": doc_ids,
-            })
-        
-        return create_memobase_agent(**agent_kwargs)
-    return None
-
-def stream_openai_response(prompt, user_id):
-    """Stream response from OpenAI"""
-    # Add to conversation history
-    st.session_state.conversation_history.append({"role": "user", "content": prompt})
-    
-    # Keep only last BUFFER_SIZE messages
-    if len(st.session_state.conversation_history) > BUFFER_SIZE * 2:
-        st.session_state.conversation_history = st.session_state.conversation_history[-BUFFER_SIZE*2:]
-    
-    # Get streaming response
-    response = openai_client.chat.completions.create(
-        messages=st.session_state.conversation_history,
+# Helper functions
+def create_agent(user_id):
+    """Create agent for user"""
+    return create_memobase_agent(
+        mb_client=mb_client,
+        llm_api_key=os.getenv('llm_api_key'),
+        llm_base_url="https://api.openai.com/v1/",
         model=MODEL,
-        stream=True,
-        user_id=user_id,
+        max_profile_tokens=1000,
+        temperature=0.7,
     )
-    
-    full_response = ""
-    for chunk in response:
-        if chunk.choices[0].delta.content:
-            content = chunk.choices[0].delta.content
-            full_response += content
-            yield content
-    
-    # Add to history
-    st.session_state.conversation_history.append({"role": "assistant", "content": full_response})
+
+def load_chat_history():
+    """Load chat history from file"""
+    if HISTORY_FILE.exists():
+        try:
+            with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_chat_history():
+    """Save chat history to file"""
+    try:
+        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(st.session_state.chat_sessions, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        st.error(f"Error saving chat history: {e}")
+
+def create_new_session():
+    """Create a new chat session"""
+    session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    st.session_state.current_session_id = session_id
+    st.session_state.messages = []
+    st.session_state.chat_sessions[session_id] = {
+        "title": "Cuộc trò chuyện mới",
+        "messages": [],
+        "created_at": datetime.now().isoformat()
+    }
+    save_chat_history()
+
+def load_session(session_id):
+    """Load a chat session"""
+    st.session_state.current_session_id = session_id
+    st.session_state.messages = st.session_state.chat_sessions[session_id]["messages"]
+
+def update_session_title(session_id, first_message):
+    """Update session title based on first message"""
+    if len(first_message) > 50:
+        title = first_message[:50] + "..."
+    else:
+        title = first_message
+    st.session_state.chat_sessions[session_id]["title"] = title
+    save_chat_history()
 
 def stream_agent_response(agent, prompt, user_id):
     """Stream response from agent"""
     for chunk in agent.chat_stream(user_id, prompt, verbose=False):
         yield chunk
 
+# Load chat history
+if not st.session_state.chat_sessions:
+    st.session_state.chat_sessions = load_chat_history()
+
+# Initialize agent if needed
+if st.session_state.agent is None:
+    st.session_state.agent = create_agent(st.session_state.user_id)
+
 # Sidebar
 with st.sidebar:
-    st.markdown(f"# 🚗 {st.session_state.assistant_name}")
-    st.markdown("### Choose Your Mode")
+    # New chat button
+    st.markdown("""
+        <div style='padding: 1rem 0;'>
+            <div style='font-size: 24px; font-weight: 500; color: #E3E3E3; margin-bottom: 1rem;'>
+                🚗 ViVi Assistant
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
     
-    mode = st.radio(
-        "Select demo mode:",
-        ["1", "2", "3", "4", "5", "6"],
-        format_func=lambda x: f"{get_mode_info(x)['icon']} {get_mode_info(x)['name']}",
-        key="mode_selector"
-    )
-    
-    # Check if mode changed
-    if mode != st.session_state.mode:
-        st.session_state.mode = mode
-        st.session_state.messages = []
-        st.session_state.conversation_history = []
-        st.session_state.agent = create_agent_for_mode(mode, st.session_state.user_id)
-        st.session_state.assistant_name = "ViVi Assistant"  # Reset to default name
+    if st.button("✨ Cuộc trò chuyện mới", use_container_width=True, key="new_chat"):
+        create_new_session()
         st.rerun()
     
     st.markdown("---")
     
-    # Mode info
-    mode_info = get_mode_info(mode)
-    st.markdown(f"<div class='mode-badge {mode_info['badge']}'>{st.session_state.assistant_name}</div>", unsafe_allow_html=True)
-    st.caption(f"{mode_info['icon']} {mode_info['name']}")
+    # Chat history
+    st.markdown("<div class='settings-title'>Lịch sử trò chuyện</div>", unsafe_allow_html=True)
     
-    st.markdown("---")
-    
-    # User info
-    st.markdown("### 👤 User Settings")
-    
-    # User ID input (editable)
-    new_user_id = st.text_input("User ID:", value=st.session_state.user_id, key="user_id_input")
-    
-    # Check if user ID changed
-    if new_user_id != st.session_state.user_id:
-        st.session_state.user_id = new_user_id
-        st.session_state.messages = []
-        st.session_state.conversation_history = []
-        st.session_state.agent = create_agent_for_mode(st.session_state.mode, new_user_id)
-        st.success(f"✅ Switched to user: {new_user_id}")
-    
-    # Assistant name input (editable)
-    new_assistant_name = st.text_input("Assistant Name:", value=st.session_state.assistant_name, key="assistant_name_input")
-    
-    # Check if assistant name changed
-    if new_assistant_name != st.session_state.assistant_name:
-        st.session_state.assistant_name = new_assistant_name
-        st.success(f"✅ Assistant renamed to: {new_assistant_name}")
-    
-    st.markdown("---")
-    
-    # Actions
-    st.markdown("### ⚙️ Actions")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🗑️ Clear Chat", use_container_width=True):
-            st.session_state.messages = []
-            st.session_state.conversation_history = []
-            st.rerun()
-    
-    with col2:
-        if st.button("💾 Flush", use_container_width=True):
-            if st.session_state.agent:
-                st.session_state.agent.flush(st.session_state.user_id)
-                st.session_state.agent.refresh_profile(st.session_state.user_id)
-            else:
-                openai_client.flush(st.session_state.user_id)
-            st.success("✅ Flushed!")
-    
-    if st.button("📚 View Profile", use_container_width=True):
-        with st.spinner("Loading profile..."):
-            if st.session_state.agent:
-                profile = st.session_state.agent.get_profile(st.session_state.user_id)
-            else:
-                profile = openai_client.get_memory_prompt(st.session_state.user_id)
-            
-            with st.expander("📋 Current Profile", expanded=True):
-                st.text(profile if profile else "[No profile available]")
-    
-    st.markdown("---")
-    st.caption("🔋 Powered by MemoBase + VinFast")
-
-# Main content
-mode_info = get_mode_info(st.session_state.mode)
-
-# Header
-col1, col2, col3 = st.columns([2, 3, 2])
-with col2:
-    st.markdown(f"# {st.session_state.assistant_name}")
-    # st.markdown(f"<p style='text-align: center; color: var(--text-secondary);'>{mode_info['description']}</p>", unsafe_allow_html=True)
-
-st.markdown("---")
-
-# Special handling for mode 5 and 6
-if st.session_state.mode == "6":
-    # PDF Viewer Mode
-    st.markdown("### 📄 VinFast Documentation PDFs")
-    
-    # Get available PDFs
-    available_pdfs = get_available_pdfs()
-    
-    if not available_pdfs:
-        st.warning("⚠️ No PDF files found in the specified directory.")
-        st.info(f"📁 Looking for PDFs in: `{PDF_DIRECTORY}`")
-    else:
-        # Create tabs for different PDFs
-        tab_names = [title for _, title, _ in available_pdfs]
-        tabs = st.tabs(tab_names)
+    if st.session_state.chat_sessions:
+        # Sort sessions by created_at (newest first)
+        sorted_sessions = sorted(
+            st.session_state.chat_sessions.items(),
+            key=lambda x: x[1].get("created_at", ""),
+            reverse=True
+        )
         
-        for i, (pdf_file, title, pdf_path) in enumerate(available_pdfs):
-            with tabs[i]:
-                st.markdown(f"#### 📖 {title}")
-                st.caption(f"File: {pdf_file}")
-                
-                # Display PDF
-                display_pdf(pdf_path)
-
-elif st.session_state.mode == "5":
-    # Profile Search Demo
-    st.markdown("### 👤 Search Event Profile Demo")
-    
-    query = st.text_input("Enter search query:", "My occupation is a software engineer")
-    
-    if st.button("🔍 Search", type="primary"):
-        with st.spinner("Searching..."):
-            u = mb_client.get_or_create_user(string_to_uuid(st.session_state.user_id))
+        for session_id, session_data in sorted_sessions:
+            title = session_data.get("title", "Cuộc trò chuyện mới")
             
-            chats = [{"role": "user", "content": query}]
+            # Truncate title to 40 characters with ellipsis
+            if len(title) > 40:
+                display_title = title[:40] + "..."
+            else:
+                display_title = title
             
-            # Run in parallel
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                search_future = executor.submit(u.search_event, query=query)
-                profile_future = executor.submit(u.profile, chats=chats)
-                
-                search_result = search_future.result()
-                profile_result = profile_future.result()
+            is_active = session_id == st.session_state.current_session_id
             
-            # Format profile
-            profile_string = "\n".join([
-                f"{p.topic}::{p.sub_topic}::{p.content}" 
-                for p in profile_result
-            ])
-            
-            # Display results
-            col1, col2 = st.columns(2)
-            
+            col1, col2 = st.columns([6, 1])
             with col1:
-                with st.expander("📅 Events", expanded=True):
-                    st.text(search_result if search_result else "[No events found]")
+                if st.button(
+                    f"{display_title}",
+                    key=f"session_{session_id}",
+                    use_container_width=True,
+                    type="primary" if is_active else "secondary"
+                ):
+                    load_session(session_id)
+                    st.rerun()
             
             with col2:
-                with st.expander("👤 Profile", expanded=True):
-                    st.text(profile_string if profile_string else "[No profile data]")
+                if st.button("🗑️", key=f"delete_{session_id}", help="Xóa"):
+                    del st.session_state.chat_sessions[session_id]
+                    if st.session_state.current_session_id == session_id:
+                        st.session_state.current_session_id = None
+                        st.session_state.messages = []
+                    save_chat_history()
+                    st.rerun()
+    else:
+        st.caption("Chưa có lịch sử trò chuyện")
+    
+    st.markdown("---")
+    
+    # Settings
+    st.markdown("<div class='settings-title'>Cài đặt</div>", unsafe_allow_html=True)
+    
+    with st.expander("⚙️ Tùy chỉnh", expanded=False):
+        new_user_id = st.text_input("User ID:", value=st.session_state.user_id)
+        if new_user_id != st.session_state.user_id:
+            st.session_state.user_id = new_user_id
+            st.session_state.agent = create_agent(new_user_id)
+            st.success("✅ Đã cập nhật User ID")
+        
+        new_assistant_name = st.text_input("Tên trợ lý:", value=st.session_state.assistant_name)
+        if new_assistant_name != st.session_state.assistant_name:
+            st.session_state.assistant_name = new_assistant_name
+            st.success("✅ Đã cập nhật tên trợ lý")
+        
+        st.markdown("---")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("💾 Lưu bộ nhớ", use_container_width=True):
+                st.session_state.agent.flush(st.session_state.user_id)
+                st.session_state.agent.refresh_profile(st.session_state.user_id)
+                st.success("✅ Đã lưu!")
+        
+        with col2:
+            if st.button("📚 Xem hồ sơ", use_container_width=True):
+                profile = st.session_state.agent.get_profile(st.session_state.user_id)
+                st.text_area("Hồ sơ người dùng:", profile if profile else "[Chưa có dữ liệu]", height=200)
 
-
+# Main content
+if not st.session_state.messages:
+    # Welcome screen with centered layout
+    st.markdown("""
+        <div class='welcome-container'>
+            <div class='welcome-title'>💥 Xin chào Hiếu!</div>
+            <div class='welcome-subtitle'>Chúng ta nên bắt đầu từ đâu nhỉ?</div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Suggestion cards in grid
+    suggestions = [
+        {"text": "Hôm nay ăn gì được?"},
+        {"text": "Hãy cho list nhạc để qua được mùa đông cô đơn này"},
+        {"text": "Hãy cho tôi list những địa điểm đáng để đến trong năm 2026"},
+        {"text": "Làm sao để thiết kế AI Agent hiệu quả hơn?"},
+    ]
+    
+    # Create suggestion grid
+    st.markdown('<div class="suggestion-grid">', unsafe_allow_html=True)
+    cols = st.columns(2)
+    for idx, suggestion in enumerate(suggestions):
+        with cols[idx % 2]:
+            if st.button(
+                suggestion['text'],
+                key=f"suggestion_{idx}",
+                use_container_width=True
+            ):
+                # Create new session if needed
+                if st.session_state.current_session_id is None:
+                    create_new_session()
+                
+                # Add suggestion as user message
+                st.session_state.messages.append({"role": "user", "content": suggestion['text']})
+                
+                # Update session title
+                update_session_title(st.session_state.current_session_id, suggestion['text'])
+                
+                st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 else:
-    # Chat modes (1, 2, 3, 4)
-    
-    # Initialize agent if needed
-    if st.session_state.mode in ["2", "3", "4"] and st.session_state.agent is None:
-        st.session_state.agent = create_agent_for_mode(st.session_state.mode, st.session_state.user_id)
-    
-    # Display chat messages
+    # Chat interface with platinum border
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Chat input (always visible)
+if prompt := st.chat_input(f"Hỏi {st.session_state.assistant_name}..."):
+    # Create new session if needed
+    if st.session_state.current_session_id is None:
+        create_new_session()
     
-    # Chat input
-    if prompt := st.chat_input("Message ViVi..."):
-        # Add user message
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    
+    # Update session title if this is the first message
+    if len(st.session_state.messages) == 1:
+        update_session_title(st.session_state.current_session_id, prompt)
+    
+    # Save to session
+    st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages
+    save_chat_history()
+    
+    with st.chat_message("user"):
+        st.markdown(prompt)
+    
+    # Generate response
+    with st.chat_message("assistant"):
+        response_placeholder = st.empty()
+        full_response = ""
         
-        # Generate response
-        with st.chat_message("assistant"):
-            response_placeholder = st.empty()
-            full_response = ""
-            
-            if st.session_state.mode == "1":
-                # OpenAI streaming
-                for chunk in stream_openai_response(prompt, st.session_state.user_id):
-                    full_response += chunk
-                    response_placeholder.markdown(full_response + "▌")
-            else:
-                # Agent streaming
-                for chunk in stream_agent_response(st.session_state.agent, prompt, st.session_state.user_id):
-                    full_response += chunk
-                    response_placeholder.markdown(full_response + "▌")
-            
-            response_placeholder.markdown(full_response)
+        # Show typing indicator
+        response_placeholder.markdown("""
+            <div class='typing-indicator'>
+                <div class='typing-dot'></div>
+                <div class='typing-dot'></div>
+                <div class='typing-dot'></div>
+            </div>
+        """, unsafe_allow_html=True)
         
-        # Add assistant response to messages
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+        # Stream response
+        for chunk in stream_agent_response(st.session_state.agent, prompt, st.session_state.user_id):
+            full_response += chunk
+            response_placeholder.markdown(full_response + "▌")
+        
+        response_placeholder.markdown(full_response)
+    
+    # Add assistant response to messages
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    
+    # Save to session
+    st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages
+    save_chat_history()
 
 
