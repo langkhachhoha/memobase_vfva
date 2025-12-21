@@ -1091,10 +1091,10 @@ if not st.session_state.messages:
                 # st.rerun()
                 
                 # Generate response immediately
-                # with st.chat_message("user"):
+                # with st.chat_message("user", avatar="👤"):
                 #     st.markdown(prompt)
                 
-                with st.chat_message("assistant"):
+                with st.chat_message("assistant", avatar="🧠"):
                     response_placeholder = st.empty()
                     full_response = ""
                     
@@ -1128,7 +1128,9 @@ else:
     # Chat interface with platinum border
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
+        # Custom avatars for user and assistant
+        avatar = "👨‍🦱" if message["role"] == "user" else "🧠"
+        with st.chat_message(message["role"], avatar=avatar):
             st.markdown(message["content"])
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1149,11 +1151,11 @@ if prompt := st.chat_input(f"Hỏi {st.session_state.assistant_name}..."):
     st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages
     save_chat_history()
     
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar="👨‍🦱"):
         st.markdown(prompt)
     
     # Generate response
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="🧠"):
         response_placeholder = st.empty()
         full_response = ""
         
