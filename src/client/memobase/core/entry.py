@@ -311,7 +311,11 @@ class User:
                 f"/users/event_gist/search/{self.user_id}{params}"
             )
         )
-        return [UserEventGistData.model_validate(e) for e in r.data["gists"]]
+        data = [UserEventGistData.model_validate(e) for e in r.data["gists"]]
+        # from rich import print as rprint
+        # print(data)
+        # return data
+        return "\n".join([e.gist_data.content for e in data])
 
     def search_event_by_tags(
         self,

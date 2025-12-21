@@ -271,7 +271,7 @@ class MemobaseAgent:
                 
                 # Run search_event and profile in parallel
                 with ThreadPoolExecutor(max_workers=2) as executor:
-                    search_future = executor.submit(user.search_event, query=query)
+                    search_future = executor.submit(user.search_event_gist, query=query)
                     profile_future = executor.submit(user.profile, chats=chats)
                     
                     search_result = search_future.result()
@@ -400,7 +400,7 @@ class MemobaseAgent:
         try:
             context = user.context(
                 max_token_size=self.max_profile_tokens,
-                prefer_topics=['work', 'basic_info', 'interests'],
+                prefer_topics=['basic_info', 'work', 'interests'],
                 # max_token_size=1000,
                 profile_event_ratio=0.7  # Only profile in system prompt
             )

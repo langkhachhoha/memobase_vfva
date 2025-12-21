@@ -361,4 +361,7 @@ if __name__ == "__main__":
     # print("--------------------------------")
     # rprint(u.search_event(query = "I am a software engineer"))
     # Run agent in no-RAG mode (default)
-    demo_agent_interactive()
+    # demo_agent_interactive()
+    # rprint(u.search_event(query = "I am hungry", topk = 10))
+    print("--------------------------------")
+    rprint(u.search_event_gist(query = "I am hungry", topk = 10))

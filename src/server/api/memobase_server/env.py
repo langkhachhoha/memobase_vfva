@@ -86,7 +86,7 @@ class Config:
     max_chat_blob_buffer_token_size: int = 1024
     max_chat_blob_buffer_process_token_size: int = 16384
     max_profile_subtopics: int = 15
-    max_pre_profile_token_size: int = 128
+    max_pre_profile_token_size: int = 256
     llm_tab_separator: str = "::"
     cache_user_profiles_ttl: int = 60 * 20  # 20 minutes
 
@@ -117,7 +117,7 @@ class Config:
     profile_strict_mode: bool = False
     profile_validate_mode: bool = True
 
-    minimum_chats_token_size_for_event_summary: int = 256
+    minimum_chats_token_size_for_event_summary: int = 512
     event_tags: list[dict] = field(default_factory=list)
     # Telemetry
     telemetry_deployment_environment: str = "local"
