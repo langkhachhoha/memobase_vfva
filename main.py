@@ -28,7 +28,7 @@ load_dotenv()
 STREAM = True
 USER_NAME = "langkhachhoha"
 BUFFER_SIZE = 5  
-MODEL = "gpt-4o-mini"
+MODEL = "gpt-4o"
 
 # 1. Initialize OpenAI client
 client = OpenAI(
@@ -355,8 +355,10 @@ def demo_agent_single_query():
 if __name__ == "__main__":
     from rich import print as rprint
     from memobase.utils import string_to_uuid
-    # rprint(u.profile())
+    # rprint(u.context(max_token_size=1000, profile_event_ratio=0.7, prefer_topics=['work', 'basic_info', 'interests']))
+    # rprint(u.profile(chats = [{"role": "user", "content": "I am a software engineer"}],
+    # max_token_size=100))
     # print("--------------------------------")
-    u.add_profile(content="Hieu prefer to use Python for programming", topic="interest", sub_topic="programming language")
-    u.update_profile(profile_id="871a8363-87a0-4eee-9198-25fcfeb75ca5",content="Hieu prefer to use C++ for programming", topic="interest", sub_topic="programming language")
-    rprint(u.profile())
+    # rprint(u.search_event(query = "I am a software engineer"))
+    # Run agent in no-RAG mode (default)
+    demo_agent_interactive()
