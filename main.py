@@ -203,68 +203,28 @@ def demo_search_event_profile():
     rprint(result)
 
 
-def demo_agent_interactive(rag_mode=None):
-    """Interactive demo with LangChain Agent
-    
-    Args:
-        rag_mode: None, "semantic", or "reasoning"
-    """
+def demo_agent_interactive():
+    """Interactive demo with LangChain Agent"""
     from memobase.patch.Agent import create_memobase_agent
-    from memobase.patch.config import (
-        QDRANT_URL, QDRANT_API_KEY, COLLECTION_NAME,
-        PAGEINDEX_API_KEY
-    )
     
     print("\n" + "="*60)
     print("🤖 LANGCHAIN AGENT WITH MEMOBASE MEMORY")
     print("="*60)
     print(f"👤 User: {USER_NAME}")
     print(f"🧠 Model: {MODEL}")
-    
-    if rag_mode == "semantic":
-        print(f"🔍 RAG Mode: Semantic Search (Qdrant)")
-    elif rag_mode == "reasoning":
-        print(f"🧠 RAG Mode: Logical Reasoning (PageIndex)")
-    else:
-        print(f"💭 RAG Mode: None")
-    
     print(f"💡 Commands: 'exit' to quit, '/memory' to view profile, '/flush' to save")
-    print(f"🔧 Tools: search_event_profile" + (", semantic_search" if rag_mode == "semantic" else ", reasoning_search" if rag_mode == "reasoning" else ""))
+    print(f"🔧 Tools: search_event_profile")
     print("="*60 + "\n")
     
-    # Create agent with RAG configuration
-    agent_kwargs = {
-        "mb_client": mb_client,
-        "llm_api_key": os.getenv('llm_api_key'),
-        "llm_base_url": "https://api.openai.com/v1/",
-        "model": MODEL,
-        "max_profile_tokens": 1000,
-        "temperature": 0.7,
-    }
-    
-    # Add RAG-specific configurations
-    if rag_mode == "semantic":
-        agent_kwargs.update({
-            "rag_mode": "semantic",
-            "qdrant_url": QDRANT_URL,
-            "qdrant_api_key": QDRANT_API_KEY,
-            "qdrant_collection_name": COLLECTION_NAME,
-        })
-    elif rag_mode == "reasoning":
-        # PageIndex document IDs
-        doc_ids = [
-            "pi-cmj8en8v103mw0dqx5nz1p9a2",
-            "pi-cmj8enxzm03no0dqx054d1y93",
-            "pi-cmj8eoruv03on0dqxxok4cf88",
-            "pi-cmj8eplpc03p90dqxwrv0qpqe"
-        ]
-        agent_kwargs.update({
-            "rag_mode": "reasoning",
-            "pageindex_api_key": PAGEINDEX_API_KEY,
-            "pageindex_doc_ids": doc_ids,
-        })
-    
-    agent = create_memobase_agent(**agent_kwargs)
+    # Create agent
+    agent = create_memobase_agent(
+        mb_client=mb_client,
+        llm_api_key=os.getenv('llm_api_key'),
+        llm_base_url="https://api.openai.com/v1/",
+        model=MODEL,
+        max_profile_tokens=1000,
+        temperature=0.7,
+    )
     
     while True:
         try:
@@ -360,7 +320,7 @@ if __name__ == "__main__":
     # max_token_size=100))
     # print("--------------------------------")
     # rprint(u.search_event(query = "I am a software engineer"))
-    # Run agent in no-RAG mode (default)
+    # Run agent demo
     # demo_agent_interactive()
     # rprint(u.search_event(query = "I am hungry", topk = 10))
     print("--------------------------------")

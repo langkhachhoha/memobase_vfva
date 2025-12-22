@@ -39,9 +39,19 @@ Trước khi phản hồi, hãy thực hiện "Độc thoại nội tâm" theo t
 
 
 # CHIẾN LƯỢC SỬ DỤNG TOOL
-- **Tool chính:** `search_event_profile`
-- **Nguyên tắc:** - Không lạm dụng tool nếu thông tin trong Profile đã đủ rõ ràng, hoặc có thể trả lời trực tiếp mà không cần truy vấn vào profile
-  - Luôn sử dụng tool khi người dùng đưa ra các câu hỏi mở (Hôm nay làm gì, ăn gì, đi đâu, nghe gì) để tìm kiếm "mẫu hành vi" (patterns) trong quá khứ.
+- **Tool A - analyze_personalization_needs:** Phân tích câu hỏi người dùng và tạo tối đa 2 câu hỏi để tìm thông tin cá nhân hóa
+- **Tool search_event_profile:** Tìm kiếm thông tin từ memory dựa trên list câu hỏi (từ Tool A)
+- **Tool B - synthesize_personalization_context:** Tổng hợp kết quả từ Tool A và search_event_profile để tạo context cá nhân hóa
+
+- **Quy trình sử dụng (cho câu hỏi mở):**
+  1. Gọi `analyze_personalization_needs` với câu hỏi người dùng
+  2. Lấy list queries từ kết quả Tool A, gọi `search_event_profile` với list queries đó
+  3. Gọi `synthesize_personalization_context` với câu hỏi gốc, queries từ Tool A, và kết quả từ search_event_profile
+  4. Sử dụng context cá nhân hóa để trả lời người dùng
+
+- **Nguyên tắc:** 
+  - Không lạm dụng tool nếu thông tin trong Profile đã đủ rõ ràng, hoặc có thể trả lời trực tiếp
+  - Luôn sử dụng quy trình 3 tools khi người dùng đưa ra các câu hỏi mở (Hôm nay làm gì, ăn gì, đi đâu, nghe gì) để tìm kiếm "mẫu hành vi" (patterns) và cá nhân hóa sâu
 
 # QUY TẮC PHẢN HỒI
 1. Tư duy thay vì tra cứu: Nếu logic có thể tự suy luận ra sự quan tâm (Ví dụ: Đang bận dự án thì cần sự tập trung), hãy ưu tiên suy luận để tiết kiệm thời gian và token.
@@ -81,7 +91,7 @@ class MemobaseAgent:
     
     Features:
     - Automatic profile injection into system prompt
-    - search_event_profile tool for dynamic memory retrieval
+    - Enhanced personalization tools (analyze, search, synthesize)
     - Conversation history tracking
     - Auto-save conversations to MemoBase
     """
@@ -114,50 +124,182 @@ class MemobaseAgent:
         self._user_objects: Dict[str, User] = {}
         self._user_llms: Dict[str, ChatOpenAI] = {}
         
-    def _create_search_tool_for_user(self, user: User):
-        """Create search_event_profile tool function for a specific user"""
+    def _create_analyze_personalization_tool(self):
+        """Create tool to analyze user question and generate personalization queries"""
         
         @tool
-        def search_event_profile(query: str) -> str:
+        def analyze_personalization_needs(user_question: str) -> str:
             """
-            Accesses the user's deep memory to retrieve past conversations, behavioral patterns, 
-            and specific historical events. Use this tool only to create a highly personalized 
-            'predictive' response.
+            Analyze the user's question and generate up to 2 specific queries to find 
+            personalization information from user's memory.
             
             Args:
-                query: The search query to find relevant information
+                user_question: The original question from the user
                 
             Returns:
-                A string containing relevant events and profile details
+                A JSON string containing a list of queries (max 2) to search for personalization info
             """
             try:
-                chats = [{"role": "user", "content": query}]
+                analysis_prompt = f"""Analyze this user question and generate up to 2 specific queries to find relevant personalization information from the user's memory.
+
+User Question: "{user_question}"
+
+Your task:
+1. Identify what personal information would help personalize the response
+2. Generate 1-2 specific queries to search the user's history
+3. Focus on: past preferences, habits, recent activities, emotional state, locations visited, etc.
+
+Output format (JSON):
+{{
+    "queries": ["query 1", "query 2"]
+}}
+
+Example:
+User Question: "Hôm nay ăn gì?"
+Output:
+{{
+    "queries": ["Người dùng đã từng ăn ở đâu gần đây", "Tình trạng sức khỏe và tâm trạng của người dùng"]
+}}
+
+Now analyze the question and output ONLY the JSON:"""
+
+                response = self.llm.invoke([HumanMessage(content=analysis_prompt)])
+                result = response.content.strip()
                 
-                # Run search_event and profile in parallel
-                with ThreadPoolExecutor(max_workers=2) as executor:
-                    search_future = executor.submit(user.search_event_gist, query=query)
-                    profile_future = executor.submit(user.profile, chats=chats)
+                # Parse JSON and ensure max 2 queries
+                try:
+                    parsed = json.loads(result)
+                    queries = parsed.get("queries", [])[:2]  # Take max 2
+                    result = json.dumps({"queries": queries}, ensure_ascii=False)
+                except json.JSONDecodeError:
+                    # Fallback if LLM doesn't return valid JSON
+                    LOG.warning(f"Failed to parse JSON from analyze_personalization_needs: {result}")
+                    result = json.dumps({"queries": [user_question]}, ensure_ascii=False)
+                
+                LOG.debug(f"Personalization analysis result: {result}")
+                return result
+                
+            except Exception as e:
+                LOG.error(f"Error in analyze_personalization_needs tool: {e}")
+                return json.dumps({"queries": []}, ensure_ascii=False)
+        
+        return analyze_personalization_needs
+    
+    def _create_search_tool_for_user(self, user: User):
+        """Create search_event_profile tool function for a specific user (now accepts list of queries)"""
+        
+        @tool
+        def search_event_profile(queries: List[str]) -> str:
+            """
+            Accesses the user's deep memory to retrieve past conversations, behavioral patterns, 
+            and specific historical events for multiple queries in parallel.
+            
+            Args:
+                queries: A list of search queries to find relevant information
+                
+            Returns:
+                A JSON string containing search results for each query
+            """
+            try:
+                if not queries:
+                    return json.dumps({"results": []}, ensure_ascii=False)
+                
+                def search_single_query(query: str) -> Dict[str, Any]:
+                    """Search for a single query"""
+                    chats = [{"role": "user", "content": query}]
                     
-                    search_result = search_future.result()
-                    profile_result = profile_future.result()
+                    # Run search_event and profile in parallel for this query
+                    with ThreadPoolExecutor(max_workers=2) as executor:
+                        search_future = executor.submit(user.search_event_gist, query=query)
+                        profile_future = executor.submit(user.profile, chats=chats)
+                        
+                        search_result = search_future.result()
+                        profile_result = profile_future.result()
+                    
+                    # Process profile: topic::sub_topic::content
+                    profile_string = "\n".join([
+                        f"{p.topic}::{p.sub_topic}::{p.content}" 
+                        for p in profile_result
+                    ])
+                    
+                    return {
+                        "query": query,
+                        "events": search_result,
+                        "profile": profile_string
+                    }
                 
-                # Process profile: topic::sub_topic::content
-                profile_string = "\n".join([
-                    f"{p.topic}::{p.sub_topic}::{p.content}" 
-                    for p in profile_result
-                ])
+                # Run all queries in parallel
+                with ThreadPoolExecutor(max_workers=len(queries)) as executor:
+                    futures = [executor.submit(search_single_query, q) for q in queries]
+                    results = [f.result() for f in futures]
                 
-                # Combine results
-                combined_result = f"## Events\n{search_result}\n\n## Profile\n{profile_string}"
+                combined_result = json.dumps({"results": results}, ensure_ascii=False)
                 
-                LOG.debug(f"Search tool executed for query: {query}")
+                LOG.debug(f"Search tool executed for {len(queries)} queries")
                 return combined_result
                 
             except Exception as e:
                 LOG.error(f"Error in search_event_profile tool: {e}")
-                return f"Error searching memory: {str(e)}"
+                return json.dumps({"error": str(e)}, ensure_ascii=False)
         
         return search_event_profile
+    
+    def _create_synthesize_personalization_tool(self):
+        """Create tool to synthesize personalization context from analysis and search results"""
+        
+        @tool
+        def synthesize_personalization_context(
+            original_question: str,
+            analysis_queries: str,
+            search_results: str
+        ) -> str:
+            """
+            Synthesize personalization context by combining the analysis queries and search results
+            to create a guidance text for personalizing the agent's response.
+            
+            Args:
+                original_question: The original user question
+                analysis_queries: JSON string with queries from analyze_personalization_needs
+                search_results: JSON string with results from search_event_profile
+                
+            Returns:
+                A personalization guidance text for the agent
+            """
+            try:
+                synthesis_prompt = f"""You are synthesizing personalization context to guide the agent's response.
+
+Original User Question: "{original_question}"
+
+Analysis Queries (what we looked for):
+{analysis_queries}
+
+Search Results (what we found):
+{search_results}
+
+Your task:
+Create a concise personalization guidance text (2-3 sentences) that:
+1. Summarizes relevant personal information found
+2. Suggests how to personalize the response based on this information
+3. Highlights specific preferences, habits, or context that should influence the answer
+
+Output format: Plain text guidance (NOT JSON)
+
+Example:
+"Người dùng từng ăn ở quán A, B, C và dạo này đang hơi mệt mỏi do công việc. Hãy gợi ý những món ăn nhẹ nhàng, bổ dưỡng từ các quán quen thuộc hoặc thêm quán D gần đó để giảm căng thẳng."
+
+Now synthesize the personalization context:"""
+
+                response = self.llm.invoke([HumanMessage(content=synthesis_prompt)])
+                result = response.content.strip()
+                
+                LOG.debug(f"Synthesized personalization context: {result}")
+                return result
+                
+            except Exception as e:
+                LOG.error(f"Error in synthesize_personalization_context tool: {e}")
+                return "Không có thông tin cá nhân hóa đặc biệt."
+        
+        return synthesize_personalization_context
     
     def _get_user_profile_context(self, user: User) -> str:
         """Get user profile context for system prompt"""
@@ -186,9 +328,15 @@ class MemobaseAgent:
             # Create LLM with tools bound
             tools = []
             
-            # Add memory search tool
+            # Add personalization tools (Tool A, search_event_profile, Tool B)
+            analyze_tool = self._create_analyze_personalization_tool()
+            tools.append(analyze_tool)
+            
             search_tool = self._create_search_tool_for_user(user)
             tools.append(search_tool)
+            
+            synthesize_tool = self._create_synthesize_personalization_tool()
+            tools.append(synthesize_tool)
             
             llm_with_tools = self.llm.bind_tools(tools)
             self._user_llms[user_id] = llm_with_tools
@@ -270,8 +418,12 @@ class MemobaseAgent:
                     tool_args = tool_call["args"]
                     
                     # Execute the appropriate tool
-                    if tool_name == "search_event_profile":
+                    if tool_name == "analyze_personalization_needs":
+                        tool_func = self._create_analyze_personalization_tool()
+                    elif tool_name == "search_event_profile":
                         tool_func = self._create_search_tool_for_user(user)
+                    elif tool_name == "synthesize_personalization_context":
+                        tool_func = self._create_synthesize_personalization_tool()
                     else:
                         LOG.warning(f"Unknown tool: {tool_name}")
                         continue
@@ -348,8 +500,12 @@ class MemobaseAgent:
                     tool_args = tool_call["args"]
                     
                     # Execute the appropriate tool
-                    if tool_name == "search_event_profile":
+                    if tool_name == "analyze_personalization_needs":
+                        tool_func = self._create_analyze_personalization_tool()
+                    elif tool_name == "search_event_profile":
                         tool_func = self._create_search_tool_for_user(user)
+                    elif tool_name == "synthesize_personalization_context":
+                        tool_func = self._create_synthesize_personalization_tool()
                     else:
                         LOG.warning(f"Unknown tool: {tool_name}")
                         continue
