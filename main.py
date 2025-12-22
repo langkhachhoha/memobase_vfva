@@ -206,6 +206,7 @@ def demo_search_event_profile():
 def demo_agent_interactive():
     """Interactive demo with LangChain Agent"""
     from memobase.patch.Agent import create_memobase_agent
+    from memobase.patch.Agent_pro import create_memobase_agent as create_memobase_agent_pro
     
     print("\n" + "="*60)
     print("🤖 LANGCHAIN AGENT WITH MEMOBASE MEMORY")
@@ -217,7 +218,7 @@ def demo_agent_interactive():
     print("="*60 + "\n")
     
     # Create agent
-    agent = create_memobase_agent(
+    agent = create_memobase_agent_pro(
         mb_client=mb_client,
         llm_api_key=os.getenv('llm_api_key'),
         llm_base_url="https://api.openai.com/v1/",
@@ -315,13 +316,4 @@ def demo_agent_single_query():
 if __name__ == "__main__":
     from rich import print as rprint
     from memobase.utils import string_to_uuid
-    # rprint(u.context(max_token_size=1000, profile_event_ratio=0.7, prefer_topics=['work', 'basic_info', 'interests']))
-    # rprint(u.profile(chats = [{"role": "user", "content": "I am a software engineer"}],
-    # max_token_size=100))
-    # print("--------------------------------")
-    # rprint(u.search_event(query = "I am a software engineer"))
-    # Run agent demo
-    # demo_agent_interactive()
-    # rprint(u.search_event(query = "I am hungry", topk = 10))
-    print("--------------------------------")
-    rprint(u.search_event_gist(query = "I am hungry", topk = 10))
+    demo_agent_interactive()
