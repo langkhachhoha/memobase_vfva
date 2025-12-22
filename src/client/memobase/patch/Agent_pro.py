@@ -39,19 +39,19 @@ Trước khi phản hồi, hãy thực hiện "Độc thoại nội tâm" theo t
 
 
 # CHIẾN LƯỢC SỬ DỤNG TOOL
-- **Tool A - analyze_personalization_needs:** Phân tích câu hỏi người dùng và tạo tối đa 2 câu hỏi để tìm thông tin cá nhân hóa
-- **Tool search_event_profile:** Tìm kiếm thông tin từ memory dựa trên list câu hỏi (từ Tool A)
-- **Tool B - synthesize_personalization_context:** Tổng hợp kết quả từ Tool A và search_event_profile để tạo context cá nhân hóa
+- **Tool analyze_personalization_needs:** Phân tích câu hỏi người dùng và tạo tối đa 2 câu hỏi để tìm thông tin cá nhân hóa, tăng trải nghiệm người dùng.
+- **Tool search_event_profile:** Tìm kiếm thông tin từ memory dựa trên list câu hỏi
+- **Tool synthesize_personalization_context:** Tổng hợp kết quả từ Tool analyze_personalization_needs và search_event_profile để tạo context cá nhân hóa, tăng trải nghiệm người dùng.
 
-- **Quy trình sử dụng (cho câu hỏi mở):**
-  1. Gọi `analyze_personalization_needs` với câu hỏi người dùng
-  2. Lấy list queries từ kết quả Tool A, gọi `search_event_profile` với list queries đó
-  3. Gọi `synthesize_personalization_context` với câu hỏi gốc, queries từ Tool A, và kết quả từ search_event_profile
+- **Quy trình sử dụng (cho câu hỏi cần cá nhân hoá chuyên sâu):**
+  1. Gọi `analyze_personalization_needs` với câu hỏi người dùng nếu trong profile hiện tại của người dùng không có thông tin.
+  2. Lấy list queries từ kết quả Tool analyze_personalization_needs, gọi `search_event_profile` với list queries đó để tìm các thông tin liên quan. 
+  3. Gọi `synthesize_personalization_context` với câu hỏi gốc, queries từ Tool analyze_personalization_needs, và kết quả từ search_event_profile để định hướng câu trả lời cá nhân hoá chuyên sâu.
   4. Sử dụng context cá nhân hóa để trả lời người dùng
 
 - **Nguyên tắc:** 
-  - Không lạm dụng tool nếu thông tin trong Profile đã đủ rõ ràng, hoặc có thể trả lời trực tiếp
-  - Luôn sử dụng quy trình 3 tools khi người dùng đưa ra các câu hỏi mở (Hôm nay làm gì, ăn gì, đi đâu, nghe gì) để tìm kiếm "mẫu hành vi" (patterns) và cá nhân hóa sâu
+  - Không lạm dụng tool nếu thông tin trong Profile đã đủ rõ ràng, hoặc có thể trả lời trực tiếp. 
+  - Luôn sử dụng quy trình 3 tools khi người dùng đưa ra các câu hỏi mở để tìm kiếm "mẫu hành vi" (patterns) và cá nhân hóa chuyên sâu.
 
 # QUY TẮC PHẢN HỒI
 1. Tư duy thay vì tra cứu: Nếu logic có thể tự suy luận ra sự quan tâm (Ví dụ: Đang bận dự án thì cần sự tập trung), hãy ưu tiên suy luận để tiết kiệm thời gian và token.
@@ -61,23 +61,26 @@ Trước khi phản hồi, hãy thực hiện "Độc thoại nội tâm" theo t
 5. **Bảo mật tư duy:** Tuyệt đối không nhắc đến tên các Tool hoặc quy trình suy luận logic với người dùng.
 
 # VÍ DỤ MINH HỌA (FEW-SHOTS)
+**Tình huống 1: Hỗ trợ kỹ thuật dựa trên Profile tĩnh (Không dùng Tool)**
+- *Người dùng:* "ViVi ơi, sao anh chạy lệnh Docker trên Ubuntu toàn báo lỗi permission denied thế nhỉ?"
+- *Tư duy:* Profile tĩnh đã ghi nhận anh Hiếu sử dụng Docker trên Ubuntu. Đây là vấn đề kỹ thuật phổ biến với người dùng Linux. Thông tin Profile đã đủ để xác định ngữ cảnh hệ điều hành của anh ấy.
+- *Quyết định:* KHÔNG GỌI TOOL. Trả lời trực tiếp dựa trên kiến thức chuyên môn và Profile.
+- *Phản hồi:* "Lỗi này do user của anh chưa được cấp quyền trong group Docker đấy anh Hiếu. Anh thử chạy lệnh sudo usermod -aG docker $USER rồi khởi động lại máy xem sao. Anh đang chạy server cho dự án MMP-A* trên xe luôn hay sao mà gấp thế ạ?"
 
-**Tình huống 1: Câu hỏi kiến thức thuần túy (1+1=?)**
-- *Tư duy:* Câu hỏi toán học cơ bản. Không cần cá nhân hóa hay dùng tool. Trả lời trực tiếp, nhanh gọn để tối ưu tốc độ.
-- *Phản hồi:* "Bằng 2 anh Hiếu nhé! Anh đố nhẹ nhàng thế này làm em thấy thư giãn hẳn đấy. Anh cần em hỗ trợ thêm gì về lộ trình hay âm nhạc trên xe không?"
+**Tình huống 2: Khích lệ học tập dựa trên Logic & Mục tiêu (Không dùng Tool)**
+- *Người dùng:* "Dạo này học Writing Task 1 nản quá, em có cách nào giúp anh không?"
+- *Tư duy:* Profile cho thấy anh Hiếu đang chuẩn bị thi IELTS vào tháng 5 tới và đang nhắm tới học bổng PhD tại NUS. Logic suy luận: Người dùng đang cần động lực và một phương pháp tiếp cận thực tế liên quan đến đam mê của họ.
+- *Quyết định:* KHÔNG GỌI TOOL. Sử dụng các "điểm chạm" quan trọng trong Profile để khích lệ.
+- *Phản hồi:* "Đừng nản anh Hiếu ơi! Anh thử coi việc mô tả biểu đồ Writing Task 1 giống như đang giải thích dữ liệu đầu vào cho mô hình AI của anh xem. Nghĩ về tấm vé PhD tại NUS vào tháng 5 tới để lấy động lực nhé. Hay để em mở một vài podcast tiếng Anh về Robotics cho anh nghe 'tắm' ngôn ngữ trên đường đi làm nhé?"
 
-**Tình huống 2: Gợi ý ăn uống (Dựa trên áp lực công việc)**
-- *Tư duy:* Profile cho thấy Hiếu đang dồn sức cho dự án MMP-A*. Suy luận logic: Anh ấy cần bữa ăn nhanh, đủ chất và không gian yên tĩnh. Chưa cần dùng tool tra cứu lịch sử.
-- *Phản hồi:* "Anh Hiếu dạo này bận dự án MMP-A* quá, trưa nay ăn cơm tấm cho chắc bụng nhé? Để em dẫn đường tới quán nào yên tĩnh gần đây cho anh tranh thủ nghỉ ngơi luôn."
-
-**Tình huống 3: Yêu cầu mở nhạc (Dựa trên sở thích tĩnh)**
-- *Tư duy:* Profile ghi rõ sở thích Sci-fi và Robot. Trả lời trực tiếp bằng cách chọn dòng nhạc Synthwave/Cyberpunk phù hợp với "gu" trong profile mà không cần gọi tool.
-- *Phản hồi:* "Có ngay! Một chút Synthwave đúng gu Cyberpunk cho anh Hiếu lái xe đầy cảm hứng như trong phim Sci-fi nhé. Đang mở nhạc rồi ạ!"
-
-**Tình huống 4: Gợi ý ăn uống dựa trên thói quen gần đây (Cần dùng Tool)**
-- *Người dùng:* "ViVi ơi, trưa nay ăn gì được em?"
-- *Tư duy:* Profile chỉ ghi Hiếu thích Sci-fi và bận dự án AI. Để đưa ra gợi ý "độc bản" và tránh lặp lại món cũ, AI cần biết thực tế dạo gần đây Hiếu hay ăn gì. Thông tin này Profile tĩnh không có. Kích hoạt search_event_profile để tìm "mẫu hành vi" ăn uống trong 3 ngày qua.
-- *Phản hồi:* "Em thấy 3 hôm nay anh Hiếu đều ăn bún chả rồi, chắc là đang 'nghiện' món này hả? Hay trưa nay mình đổi vị sang mì Ramen cho đúng gu Nhật Bản anh thích, mà vẫn nhanh gọn để anh kịp về xử lý tiếp dự án MMP-A* nhé?"
+**Tình huống 3: Gợi ý lịch trình dựa trên biến động hành vi (Sử dụng chuỗi 3 Tools)**
+- *Người dùng:* "Cuối tuần này có chỗ nào quanh Hà Nội cho anh đi thư giãn một chút không em?"
+- *Tư duy:* Profile không lưu lịch sử di chuyển gần nhất. Cần tránh gợi ý những nơi anh vừa đi tuần trước và tìm không gian phù hợp với gu thẩm mỹ Sci-fi của anh.
+- *Quyết định:* SỬ DỤNG CHUỖI 3 TOOLS.
+- *Gọi analyze_personalization_needs:* Tìm "Địa điểm đi chơi gần nhất" và "Gu không gian anh Hiếu hay tìm kiếm".
+- *Gọi search_event_profile:* Kết quả: Tuần trước đi Hồ Tây; Mới tìm kiếm "quán cafe decor Neon/Cyberpunk"; Muốn đi dưới 20km.
+- *Gọi synthesize_personalization_context:* Tổng hợp: Nên đi hướng Long Biên, chọn quán có vibe tương lai, yên tĩnh để suy ngẫm dự án.
+- *Phản hồi:* "Em thấy tuần trước anh Hiếu đã dành thời gian ở Hồ Tây rồi, hay cuối tuần này mình 'đổi gió' sang phía Đông một chút nhé? Em vừa tìm thấy một khu tổ hợp cafe mới ở Long Biên với thiết kế tối giản, đậm chất tương lai như trong phim Sci-fi anh thích ấy. Không gian ở đó rất thoáng và yên tĩnh, cực kỳ hợp để anh vừa 'chill', vừa tìm thêm cảm h
 
 # CHỈ THỊ CUỐI CÙNG
 Bạn là ViVi. Hãy bắt đầu tư duy và hỗ trợ chủ xe của mình một cách thông minh, tinh tế nhất.
@@ -140,31 +143,57 @@ class MemobaseAgent:
                 A JSON string containing a list of queries (max 2) to search for personalization info
             """
             try:
-                analysis_prompt = f"""Analyze this user question and generate up to 2 specific queries to find relevant personalization information from the user's memory.
+                analysis_prompt = f"""
+# VAI TRÒ
+Bạn là Bộ phận Phân tích Ý định của ViVi. Nhiệm vụ của bạn là chuyển hóa câu hỏi của người dùng thành các từ khóa tìm kiếm bộ nhớ (Memory) mang tính khái quát nhưng bao quát được các chủ đề liên quan.
 
-User Question: "{user_question}"
+# NHIỆM VỤ
+Phân tích câu hỏi: "{user_question}"
+Tạo ra tối đa 2 truy vấn tìm kiếm bộ nhớ theo dạng "Chủ đề thông tin". Các truy vấn này cần phải rộng để hệ thống tìm kiếm không bỏ sót dữ liệu.
 
-Your task:
-1. Identify what personal information would help personalize the response
-2. Generate 1-2 specific queries to search the user's history
-3. Focus on: past preferences, habits, recent activities, emotional state, locations visited, etc.
+# NGUYÊN TẮC TẠO QUERIES
+1. **Khái quát hóa:** Không đưa các ví dụ cụ thể (như tên dự án, tên phần mềm) vào query. Hãy dùng các danh từ chung như "Tiến độ công việc", "Sở thích ăn uống", "Thói quen di chuyển".
+2. **Trạng thái & Cảm xúc:** Tìm kiếm các thông tin về "Trạng thái tâm lý gần đây" hoặc "Mức độ áp lực công việc".
+3. **Mục tiêu & Kế hoạch:** Tìm kiếm về "Các dự định dài hạn" hoặc "Kế hoạch quan trọng sắp tới".
+4. **Mẫu hành vi:** Truy vấn về "Thói quen sinh hoạt" hoặc "Lịch sử tương tác gần đây".
 
-Output format (JSON):
+# ĐỊNH DẠNG ĐẦU RA (JSON)
 {{
-    "queries": ["query 1", "query 2"]
+    "queries": ["Chủ đề thông tin 1", "Chủ đề thông tin 2"]
 }}
 
-Example:
-User Question: "Hôm nay ăn gì?"
-Output:
-{{
-    "queries": ["Người dùng đã từng ăn ở đâu gần đây", "Tình trạng sức khỏe và tâm trạng của người dùng"]
+# VÍ DỤ MINH HỌA
+- **User Question:** "Tầm này ăn gì em?"
+- **Output:** {{
+    "queries": [
+        "Sở thích ẩm thực và thói quen ăn uống gần đây",
+        "Trạng thái sức khỏe và mức độ ưu tiên về dinh dưỡng"
+    ]
 }}
 
-Now analyze the question and output ONLY the JSON:"""
+- **User Question:** "Bắt đầu làm việc thôi."
+- **Output:** {{
+    "queries": [
+        "Tiến độ công việc và các mục tiêu đang thực hiện",
+        "Thói quen tập trung và sở thích âm nhạc khi làm việc"
+    ]
+}}
+
+Hãy phân tích và xuất ra DUY NHẤT JSON:"""
 
                 response = self.llm.invoke([HumanMessage(content=analysis_prompt)])
                 result = response.content.strip()
+                
+                # Extract JSON from markdown code block if present
+                if result.startswith("```"):
+                    # Remove markdown code block markers
+                    lines = result.split("\n")
+                    # Remove first line (```json or ```)
+                    lines = lines[1:]
+                    # Remove last line (```)
+                    if lines and lines[-1].strip() == "```":
+                        lines = lines[:-1]
+                    result = "\n".join(lines).strip()
                 
                 # Parse JSON and ensure max 2 queries
                 try:
@@ -210,7 +239,7 @@ Now analyze the question and output ONLY the JSON:"""
                     
                     # Run search_event and profile in parallel for this query
                     with ThreadPoolExecutor(max_workers=2) as executor:
-                        search_future = executor.submit(user.search_event_gist, query=query)
+                        search_future = executor.submit(user.search_event_gist, query=query, topk=5)
                         profile_future = executor.submit(user.profile, chats=chats)
                         
                         search_result = search_future.result()
@@ -266,28 +295,31 @@ Now analyze the question and output ONLY the JSON:"""
                 A personalization guidance text for the agent
             """
             try:
-                synthesis_prompt = f"""You are synthesizing personalization context to guide the agent's response.
+                synthesis_prompt = f"""
+# VAI TRÒ
+Bạn là Chuyên gia Tổng hợp Ngữ cảnh của ViVi. Nhiệm vụ của bạn là biến những mảnh dữ liệu thô từ bộ nhớ thành một "Kim chỉ nam" sắc sảo, giúp Agent có thể phản hồi người dùng một cách tinh tế, thấu cảm và mang tính dự báo cao.
 
-Original User Question: "{original_question}"
+# DỮ LIỆU ĐẦU VÀO
+1. Câu hỏi gốc: "{original_question}"
+2. Chủ đề đã tìm kiếm: {analysis_queries}
+3. Kết quả từ bộ nhớ: {search_results}
 
-Analysis Queries (what we looked for):
-{analysis_queries}
+# NHIỆM VỤ CỦA BẠN
+Hãy viết một đoạn hướng dẫn cá nhân hóa ngắn gọn (2-3 câu) thực hiện các yêu cầu sau:
+1. **Đúc kết "Nhịp sống":** Chắt lọc các mẫu hành vi (patterns), trạng thái cảm xúc hoặc tiến độ công việc thực tế từ kết quả tìm kiếm.
+2. **Tạo sợi dây liên kết:** Kết nối câu hỏi hiện tại với các mục tiêu dài hạn hoặc sở thích đặc trưng của người dùng (ví dụ: nghiên cứu AI, thi IELTS, gu thẩm mỹ Sci-fi).
+3. **Đề xuất "Điểm chạm" (Hooks):** Chỉ dẫn Agent nên xoáy sâu vào chi tiết nào hoặc dùng tông giọng nào để người dùng cảm thấy được thấu hiểu sâu sắc.
 
-Search Results (what we found):
-{search_results}
+# QUY TẮC ĐẦU RA
+- Trình bày dạng Plain Text (Không JSON).
+- Ngôn ngữ chuyên nghiệp, tận tâm, giàu tính gợi mở.
+- Không liệt kê thô, hãy tổng hợp thành một "insight".
 
-Your task:
-Create a concise personalization guidance text (2-3 sentences) that:
-1. Summarizes relevant personal information found
-2. Suggests how to personalize the response based on this information
-3. Highlights specific preferences, habits, or context that should influence the answer
+# VÍ DỤ MINH HỌA
+- **Input:** Câu hỏi "Đi đâu chill?", Kết quả tìm thấy "Vừa xong dự án căng thẳng", "Thích không gian Neon/Cyberpunk".
+- **Output:** "Người dùng vừa trải qua giai đoạn làm việc cường độ cao và đang có xu hướng tìm kiếm sự giải tỏa trong không gian đúng gu thẩm mỹ Sci-fi yêu thích. Hãy gợi ý một địa điểm có vibe tương lai, yên tĩnh để người dùng tái tạo năng lượng mà không làm đứt quãng mạch tư duy sáng tạo."
 
-Output format: Plain text guidance (NOT JSON)
-
-Example:
-"Người dùng từng ăn ở quán A, B, C và dạo này đang hơi mệt mỏi do công việc. Hãy gợi ý những món ăn nhẹ nhàng, bổ dưỡng từ các quán quen thuộc hoặc thêm quán D gần đó để giảm căng thẳng."
-
-Now synthesize the personalization context:"""
+Bắt đầu tổng hợp ngữ cảnh:"""
 
                 response = self.llm.invoke([HumanMessage(content=synthesis_prompt)])
                 result = response.content.strip()
@@ -408,7 +440,7 @@ Now synthesize the personalization context:"""
                     for tool_call in response.tool_calls:
                         tool_name = tool_call["name"]
                         tool_args = tool_call["args"]
-                        print(f"🔧 Using tool: {tool_name}")
+                        print(f"\n🔧 Using tool: {tool_name}")
                         print(f"   Args: {tool_args}")
                 
                 # Execute tool calls
@@ -417,18 +449,43 @@ Now synthesize the personalization context:"""
                     tool_name = tool_call["name"]
                     tool_args = tool_call["args"]
                     
+                    # Log tool execution
+                    if verbose:
+                        print(f"\n{'='*60}")
+                        print(f"🛠️  Executing: {tool_name}")
+                        print(f"{'='*60}")
+                    
                     # Execute the appropriate tool
                     if tool_name == "analyze_personalization_needs":
+                        if verbose:
+                            print(f"📋 Input: {tool_args.get('user_question', '')[:100]}...")
                         tool_func = self._create_analyze_personalization_tool()
                     elif tool_name == "search_event_profile":
+                        if verbose:
+                            queries = tool_args.get('queries', [])
+                            print(f"🔍 Searching with {len(queries)} queries:")
+                            for i, q in enumerate(queries, 1):
+                                print(f"   {i}. {q}")
                         tool_func = self._create_search_tool_for_user(user)
                     elif tool_name == "synthesize_personalization_context":
+                        if verbose:
+                            print(f"🧠 Synthesizing personalization context...")
                         tool_func = self._create_synthesize_personalization_tool()
                     else:
                         LOG.warning(f"Unknown tool: {tool_name}")
                         continue
                     
                     tool_result = tool_func.invoke(tool_args)
+                    
+                    # Log tool result
+                    if verbose:
+                        print(f"\n✅ Result from {tool_name}:")
+                        if len(str(tool_result)) > 500:
+                            print(f"   {str(tool_result)[:500]}...")
+                            print(f"   ... (truncated, total length: {len(str(tool_result))} chars)")
+                        else:
+                            print(f"   {tool_result}")
+                        print(f"{'='*60}\n")
                     
                     # Create tool message
                     from langchain_core.messages import ToolMessage
@@ -444,7 +501,7 @@ Now synthesize the personalization context:"""
                 messages.extend(tool_messages)
                 
                 if verbose:
-                    print(f"💭 Processing results...")
+                    print(f"\n💭 Processing results and generating final response...\n")
                 
                 # Get next response
                 response = llm_with_tools.invoke(messages)
@@ -475,7 +532,7 @@ Now synthesize the personalization context:"""
         Args:
             user_id: User identifier
             message: User's message
-            verbose: Not used anymore, kept for backwards compatibility
+            verbose: Show tool execution process
             
         Yields:
             Chunks of AI response
@@ -489,28 +546,62 @@ Now synthesize the personalization context:"""
         
         try:
             # First, get the initial response to check for tool calls
+            if verbose:
+                print(f"\n💭 Thinking...")
             response = llm_with_tools.invoke(messages)
             
-            # Handle tool calls silently (no output to user)
+            # Handle tool calls with verbose logging
             while response.tool_calls:
+                if verbose:
+                    for tool_call in response.tool_calls:
+                        tool_name = tool_call["name"]
+                        tool_args = tool_call["args"]
+                        print(f"\n🔧 Using tool: {tool_name}")
+                        print(f"   Args: {tool_args}")
+                
                 # Execute tool calls
                 tool_messages = []
                 for tool_call in response.tool_calls:
                     tool_name = tool_call["name"]
                     tool_args = tool_call["args"]
                     
+                    # Log tool execution
+                    if verbose:
+                        print(f"\n{'='*60}")
+                        print(f"🛠️  Executing: {tool_name}")
+                        print(f"{'='*60}")
+                    
                     # Execute the appropriate tool
                     if tool_name == "analyze_personalization_needs":
+                        if verbose:
+                            print(f"📋 Input: {tool_args.get('user_question', '')[:100]}...")
                         tool_func = self._create_analyze_personalization_tool()
                     elif tool_name == "search_event_profile":
+                        if verbose:
+                            queries = tool_args.get('queries', [])
+                            print(f"🔍 Searching with {len(queries)} queries:")
+                            for i, q in enumerate(queries, 1):
+                                print(f"   {i}. {q}")
                         tool_func = self._create_search_tool_for_user(user)
                     elif tool_name == "synthesize_personalization_context":
+                        if verbose:
+                            print(f"🧠 Synthesizing personalization context...")
                         tool_func = self._create_synthesize_personalization_tool()
                     else:
                         LOG.warning(f"Unknown tool: {tool_name}")
                         continue
                     
                     tool_result = tool_func.invoke(tool_args)
+                    
+                    # Log tool result
+                    if verbose:
+                        print(f"\n✅ Result from {tool_name}:")
+                        if len(str(tool_result)) > 500:
+                            print(f"   {str(tool_result)[:500]}...")
+                            print(f"   ... (truncated, total length: {len(str(tool_result))} chars)")
+                        else:
+                            print(f"   {tool_result}")
+                        print(f"{'='*60}\n")
                     
                     # Create tool message
                     from langchain_core.messages import ToolMessage
@@ -525,10 +616,16 @@ Now synthesize the personalization context:"""
                 messages.append(response)
                 messages.extend(tool_messages)
                 
+                if verbose:
+                    print(f"\n💭 Processing results and generating final response...\n")
+                
                 # Check if there are more tool calls
                 response = llm_with_tools.invoke(messages)
             
             # Now stream the final response using LLM's stream method
+            if verbose:
+                print(f"AI: ", end="", flush=True)
+            
             for chunk in llm_with_tools.stream(messages):
                 if hasattr(chunk, 'content') and chunk.content:
                     full_response += chunk.content

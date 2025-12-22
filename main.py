@@ -265,17 +265,17 @@ def demo_agent_interactive():
             continue
         
         # Get response from agent
-        print("AI: ", end="", flush=True)
-        
         if STREAM:
-            # Stream response
-            for chunk in agent.chat_stream(USER_NAME, user_input, verbose=False):
+            # Stream response with tool execution logs
+            print("")  # New line for tool logs
+            for chunk in agent.chat_stream(USER_NAME, user_input, verbose=True):
                 print(chunk, end="", flush=True)
             print("\n")
         else:
-            # Non-streaming response
-            response = agent.chat(USER_NAME, user_input, verbose=False)
-            print(response + "\n")
+            # Non-streaming response with tool execution logs
+            print("")  # New line for tool logs
+            response = agent.chat(USER_NAME, user_input, verbose=True)
+            print(f"\nAI: {response}\n")
 
 
 def demo_agent_single_query():
