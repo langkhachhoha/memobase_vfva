@@ -20,6 +20,7 @@ from datetime import datetime
 
 load_dotenv()
 
+
 # Page config
 st.set_page_config(
     page_title="ViVi - VinFast AI Assistant",
@@ -1158,28 +1159,18 @@ with st.sidebar:
     else:
         st.caption("Chưa có lịch sử trò chuyện")
     
-    # st.markdown("---")
-    
-    # # Settings
-    # st.markdown("<div class='settings-title'>Cài đặt</div>", unsafe_allow_html=True)
-    
-    # # Mode selector in sidebar
-    # st.markdown("<div style='margin-bottom: 12px; font-size: 12px; color: #C4C4C4; font-weight: 500;'>Chế độ AI</div>", unsafe_allow_html=True)
-    # new_mode = st.selectbox(
-    #     "Mode",
-    #     options=["Pro Max", "Pro"],
-    #     index=0 if st.session_state.agent_mode == "Pro Max" else 1,
-    #     key="mode_selector",
-    #     label_visibility="collapsed"
-    # )
     
     # If mode changed, recreate / reset agent và clear short-term messages
     if new_mode != st.session_state.agent_mode:
         st.session_state.agent_mode = new_mode
         if new_mode in ("Pro", "Pro Max"):
+            st.session_state.agent.flush(st.session_state.user_id)
+            st.session_state.agent.refresh_profile(st.session_state.user_id)
             st.session_state.agent = create_agent(st.session_state.user_id, new_mode)
         else:
             # ViVi: stateless per turn -> không giữ agent trong session
+            st.session_state.agent.flush(st.session_state.user_id)
+            st.session_state.agent.refresh_profile(st.session_state.user_id)
             st.session_state.agent = None
         st.session_state.messages = []
         st.session_state.current_session_id = None
@@ -1372,11 +1363,7 @@ if not st.session_state.messages:
                 # Save to session
                 st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages
                 save_chat_history()
-                # st.rerun()
-                
-                # Generate response immediately
-                # with st.chat_message("user", avatar="👤"):
-                #     st.markdown(prompt)
+              
                 
                 with st.chat_message("assistant", avatar="🧠"):
                     response_placeholder = st.empty()
@@ -1395,9 +1382,6 @@ if not st.session_state.messages:
                     agent_for_turn = get_agent_for_request()
                     for chunk in stream_agent_response(agent_for_turn, prompt, st.session_state.user_id):
                         full_response += chunk
-                    #     response_placeholder.markdown(full_response + "▌")
-                    
-                    # response_placeholder.markdown(full_response)
                 
                 # Add assistant response to messages
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
@@ -1469,5 +1453,7 @@ if prompt:
     # Save to session
     st.session_state.chat_sessions[st.session_state.current_session_id]["messages"] = st.session_state.messages
     save_chat_history()
+
+
 
 
