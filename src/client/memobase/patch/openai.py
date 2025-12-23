@@ -60,7 +60,7 @@ def _get_memory_prompt(
         u = mb_client.get_user(uid, no_get=True)
         context = u.context(max_token_size=max_context_size,
                             prefer_topics=['work', 'basic_info', 'interests'],
-                            profile_event_ratio = 1)
+                            profile_event_ratio = 0.6)
         sys_prompt = PROMPT.format(
             user_context=context, additional_memory_prompt=additional_memory_prompt
         )

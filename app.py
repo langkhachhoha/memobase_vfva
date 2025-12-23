@@ -705,12 +705,17 @@ if "profile_action" not in st.session_state:
 if "selected_profile_id" not in st.session_state:
     st.session_state.selected_profile_id = None
 if "agent_mode" not in st.session_state:
+    # Các mode:
+    # - Pro Max: dùng Agent_pro (cá nhân hoá nâng cao, giữ context ngắn hạn)
+    # - Pro: dùng Agent (bản chuẩn, giữ context ngắn hạn)
+    # - ViVi: mỗi lượt hỏi sẽ tạo một Agent mới, không giữ context ngắn hạn, chỉ dùng Memobase
     st.session_state.agent_mode = "Pro Max"  # Default to Pro Max
 
 # Helper functions
 def create_agent(user_id, mode="Pro Max"):
-    """Create agent for user based on mode"""
+    """Create agent for user based on mode."""
     if mode == "Pro Max":
+        # Bản Pro Max: dùng Agent_pro với pipeline cá nhân hoá nâng cao
         from memobase.patch.Agent_pro import create_memobase_agent as create_agent_pro_max
         return create_agent_pro_max(
             mb_client=mb_client,
@@ -720,15 +725,33 @@ def create_agent(user_id, mode="Pro Max"):
             max_profile_tokens=1000,
             temperature=0.7,
         )
-    else:  # Pro mode
-        return create_memobase_agent(
-            mb_client=mb_client,
-            llm_api_key=os.getenv('llm_api_key'),
-            llm_base_url="https://api.openai.com/v1/",
-            model=MODEL,
-            max_profile_tokens=1000,
-            temperature=0.7,
-        )
+    # Cả Pro và ViVi đều dùng Agent chuẩn, khác nhau ở cách quản lý vòng đời Agent
+    return create_memobase_agent(
+        mb_client=mb_client,
+        llm_api_key=os.getenv('llm_api_key'),
+        llm_base_url="https://api.openai.com/v1/",
+        model=MODEL,
+        max_profile_tokens=1000,
+        temperature=0.7,
+    )
+
+
+def get_agent_for_request() -> "MemobaseAgent":
+    """Lấy agent để xử lý MỘT lượt hỏi.
+
+    - Nếu mode là ViVi: luôn tạo agent mới cho mỗi lượt (stateless per turn).
+    - Nếu là Pro/Pro Max: dùng agent trong session_state (giữ short-term context).
+    """
+    mode = st.session_state.agent_mode
+    user_id = st.session_state.user_id
+
+    if mode == "ViVi":
+        return create_agent(user_id, mode="ViVi")
+
+    # Các mode có state: dùng agent đã cache
+    if st.session_state.agent is None:
+        st.session_state.agent = create_agent(user_id, mode=mode)
+    return st.session_state.agent
 
 def load_chat_history():
     """Load chat history from file"""
@@ -987,16 +1010,23 @@ def show_profile_dialog():
 if not st.session_state.chat_sessions:
     st.session_state.chat_sessions = load_chat_history()
 
-# Initialize agent if needed
-if st.session_state.agent is None:
+# Initialize agent if needed (chỉ cho các mode có state)
+if st.session_state.agent_mode in ("Pro", "Pro Max") and st.session_state.agent is None:
     st.session_state.agent = create_agent(st.session_state.user_id, st.session_state.agent_mode)
 
 # Sidebar
 with st.sidebar:
     # New chat button
     # Mode badge color
-    mode_color = "#FFD700" if st.session_state.agent_mode == "Pro Max" else "#8AB4F8"
-    mode_emoji = "✨" if st.session_state.agent_mode == "Pro Max" else "⚡"
+    if st.session_state.get("agent_mode") == "Pro Max":
+        mode_color = "#FFD700"  # Vàng Gold sang trọng
+        mode_emoji = "✨"       # Lấp lánh cho bản cao cấp nhất
+    elif st.session_state.get("agent_mode") == "Pro":
+        mode_color = "#00C6FF"  # Xanh Electric Blue hiện đại (đẹp hơn #8AB4F8)
+        mode_emoji = "⚡"       # Tia chớp cho hiệu suất
+    else:
+        mode_color = "#FFFFFF"  # Trắng tinh giản cho bản thường
+        mode_emoji = "👋"       # Vẫy tay thân thiện
     
     st.markdown(f"""
         <div style='padding: 1.5rem 0; text-align: center;'>
@@ -1075,10 +1105,11 @@ with st.sidebar:
     with col1:
         new_mode = st.selectbox(
             "Mode",
-            options=["Pro Max", "Pro"],
-            index=0 if st.session_state.get("agent_mode") == "Pro Max" else 1,
+            options=["Pro Max", "Pro", "ViVi"],
+            index=["Pro Max", "Pro", "ViVi"].index(st.session_state.get("agent_mode", "Pro Max")),
             key="mode_selector",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            help="Pro Max: cá nhân hoá nâng cao • Pro: bản chuẩn giữ context • ViVi: mỗi lượt hỏi tạo Agent mới"
         )
     
     st.markdown("---")
@@ -1142,10 +1173,14 @@ with st.sidebar:
     #     label_visibility="collapsed"
     # )
     
-    # If mode changed, recreate agent and clear messages
+    # If mode changed, recreate / reset agent và clear short-term messages
     if new_mode != st.session_state.agent_mode:
         st.session_state.agent_mode = new_mode
-        st.session_state.agent = create_agent(st.session_state.user_id, new_mode)
+        if new_mode in ("Pro", "Pro Max"):
+            st.session_state.agent = create_agent(st.session_state.user_id, new_mode)
+        else:
+            # ViVi: stateless per turn -> không giữ agent trong session
+            st.session_state.agent = None
         st.session_state.messages = []
         st.session_state.current_session_id = None
         st.rerun()
@@ -1179,12 +1214,15 @@ with st.sidebar:
 
 # Main content
 if not st.session_state.messages:
+# import streamlit as st
+
+# CSS định nghĩa giao diện chuyên nghiệp cho 3 phân cấp
     st.markdown("""
     <style>
         .welcome-container {
             padding: 2.5rem;
             border-radius: 24px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
             backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             margin-bottom: 2rem;
@@ -1195,7 +1233,6 @@ if not st.session_state.messages:
             font-size: 3.5rem;
             margin-bottom: 1.2rem;
             display: inline-block;
-            filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.3));
         }
         
         .welcome-title {
@@ -1203,6 +1240,24 @@ if not st.session_state.messages:
             font-weight: 800;
             line-height: 1.2;
             margin-bottom: 0.8rem;
+        }
+        
+        /* Cấu hình màu sắc theo từng Mode */
+        .text-promax {
+            background: linear-gradient(90deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.2));
+        }
+        
+        .text-pro {
+            background: linear-gradient(90deg, #00C6FF, #0072FF);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 10px rgba(0, 198, 255, 0.2));
+        }
+        
+        .text-base {
             color: #FFFFFF;
         }
         
@@ -1213,9 +1268,8 @@ if not st.session_state.messages:
             font-weight: 400;
         }
         
-        /* Dòng chữ mới để lấp đầy khoảng trống */
         .welcome-tagline {
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             color: rgba(255, 255, 255, 0.4);
             text-transform: uppercase;
             letter-spacing: 2px;
@@ -1227,41 +1281,50 @@ if not st.session_state.messages:
         }
 
         .tagline-dot {
-            height: 6px;
-            width: 6px;
-            background-color: #00ffa3; /* Điểm nhấn màu xanh robot */
+            height: 8px;
+            width: 8px;
             border-radius: 50%;
             display: inline-block;
-        }
-
-        /* Gradient riêng cho Pro Max */
-        .text-promax {
-            background: linear-gradient(90deg, #FFD700, #FFA500);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
         }
     </style>
     """, unsafe_allow_html=True)
 
-    # Nội dung dựa trên Mode
-    if st.session_state.get("agent_mode") == "Pro Max":
-        tagline = "Cá nhân hóa chuyên sâu • Kiến trúc Neural nâng cao"
-        title_class = "welcome-title text-promax"
-        icon = "✨"
-        subtitle = "Tôi là <b>ViVi Pro Max</b> — Phiên bản tối ưu nhất dành cho Hiếu."
-    else:
-        tagline = "Xử lý thông minh • Phản hồi tức thì"
-        title_class = "welcome-title"
-        icon = "👋"
-        subtitle = "Tôi là <b>ViVi Pro</b> — Trợ lý AI đồng hành cùng bạn."
+    # Lấy mode từ session state
+    current_mode = st.session_state.get("agent_mode", "Basic")
 
+    # Cấu hình nội dung chi tiết cho từng Mode
+    if current_mode == "Pro Max":
+        tagline = "Cá nhân hóa chuyên sâu • Chăm sóc tận tình"
+        title_style = "text-promax"
+        icon = "✨"
+        dot_color = "#FFD700"
+        shadow_color = "rgba(255, 215, 0, 0.4)"
+        subtitle = "Tôi là <b>ViVi Pro Max</b> — Phiên bản cao cấp nhất dành cho Hiếu."
+        
+    elif current_mode == "Pro":
+        tagline = "Hiệu suất tối ưu • Phản hồi nhanh chóng"
+        title_style = "text-pro"
+        icon = "⚡"
+        dot_color = "#00C6FF"
+        shadow_color = "rgba(0, 198, 255, 0.4)"
+        subtitle = "Tôi là <b>ViVi Pro</b> — Trợ lý AI thông minh cho công việc của bạn."
+        
+    else:  # Phiên bản Tiêu chuẩn (Basic)
+        tagline = "Đơn giản • Nhanh chóng • Tin cậy"
+        title_style = "text-base"
+        icon = "👋"
+        dot_color = "#FFFFFF"
+        shadow_color = "rgba(255, 255, 255, 0.2)"
+        subtitle = "Tôi là <b>ViVi</b> — Người đồng hành thân thiện mỗi ngày."
+
+    # Render giao diện
     welcome_html = f"""
     <div class='welcome-container'>
-        <div class='welcome-icon'>{icon}</div>
-        <div class='{title_class}'>Xin chào Hiếu!</div>
+        <div class='welcome-icon' style='filter: drop-shadow(0 0 15px {shadow_color});'>{icon}</div>
+        <div class='welcome-title {title_style}'>Xin chào Hiếu!</div>
         <div class='welcome-subtitle'>{subtitle}</div>
         <div class='welcome-tagline'>
-            <span class='tagline-dot'></span>
+            <span class='tagline-dot' style='background-color: {dot_color}; box-shadow: 0 0 8px {dot_color};'></span>
             {tagline}
         </div>
     </div>
@@ -1328,8 +1391,9 @@ if not st.session_state.messages:
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # Stream response
-                    for chunk in stream_agent_response(st.session_state.agent, prompt, st.session_state.user_id):
+                    # Stream response (chọn agent theo mode; ViVi sẽ tạo agent mới mỗi lượt)
+                    agent_for_turn = get_agent_for_request()
+                    for chunk in stream_agent_response(agent_for_turn, prompt, st.session_state.user_id):
                         full_response += chunk
                     #     response_placeholder.markdown(full_response + "▌")
                     
@@ -1391,8 +1455,9 @@ if prompt:
             </div>
         """, unsafe_allow_html=True)
         
-        # Stream response
-        for chunk in stream_agent_response(st.session_state.agent, prompt, st.session_state.user_id):
+        # Stream response (ViVi mode tạo agent mới mỗi lượt)
+        agent_for_turn = get_agent_for_request()
+        for chunk in stream_agent_response(agent_for_turn, prompt, st.session_state.user_id):
             full_response += chunk
             response_placeholder.markdown(full_response + "▌")
         

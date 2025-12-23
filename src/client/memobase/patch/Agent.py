@@ -166,7 +166,7 @@ class MemobaseAgent:
                 max_token_size=self.max_profile_tokens,
                 prefer_topics=['basic_info', 'work', 'interests'],
                 # max_token_size=1000,
-                profile_event_ratio=0.7  # Only profile in system prompt
+                profile_event_ratio=0.8  # Only profile in system prompt
             )
             return context if context else "[No profile information available yet]"
         except Exception as e:

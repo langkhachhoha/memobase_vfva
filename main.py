@@ -218,13 +218,14 @@ def demo_agent_interactive():
     print("="*60 + "\n")
     
     # Create agent
-    agent = create_memobase_agent_pro(
+    agent = create_memobase_agent(
         mb_client=mb_client,
         llm_api_key=os.getenv('llm_api_key'),
         llm_base_url="https://api.openai.com/v1/",
         model=MODEL,
         max_profile_tokens=1000,
         temperature=0.7,
+        max_history_messages=1,
     )
     
     while True:
@@ -279,41 +280,81 @@ def demo_agent_interactive():
 
 
 def demo_agent_single_query():
-    """Demo single query with agent"""
+    """Demo chat với agent theo từng lượt hỏi–đáp.
+
+    Mỗi lượt:
+    - Tạo MỘT agent mới
+    - Người dùng hỏi 1 câu, agent trả lời 1 lần (có stream nếu bật STREAM)
+    - Sau đó agent đó bị bỏ đi
+
+    Phiên chat chỉ kết thúc khi người dùng gõ 'exit' / 'quit' hoặc Ctrl+C.
+    Flush buffer CHỈ được gọi một lần khi kết thúc phiên (Memobase vẫn tự flush
+    theo token như bình thường trong lúc chat).
+    """
     from memobase.patch.Agent import create_memobase_agent
     
     print("\n" + "="*60)
     print("🤖 SINGLE QUERY DEMO")
     print("="*60 + "\n")
+
+    try:
+        while True:
+            # Nhận câu hỏi từ người dùng
+            try:
+                user_question = input("You: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n👋 Kết thúc phiên chat.")
+                break
+
+            if not user_question:
+                continue
+
+            if user_question.lower() in ("exit", "quit", "q"):
+                print("👋 Kết thúc phiên chat theo yêu cầu.")
+                break
+
+            # Tạo agent MỚI cho mỗi lượt hỏi
+            agent = create_memobase_agent(
+                mb_client=mb_client,
+                llm_api_key=os.getenv('llm_api_key'),
+                llm_base_url="https://api.openai.com/v1/",
+                model=MODEL,
+                max_profile_tokens=1000,
+                temperature=0.7,
+                max_history_messages=1,
+            )
+
+            # Agent trả lời 1 lần, vẫn stream như bình thường
+            if STREAM:
+                print("\nAI: ", end="", flush=True)
+                full_response = ""
+                for chunk in agent.chat_stream(USER_NAME, user_question, verbose=False):
+                    if chunk:
+                        full_response += chunk
+                        print(chunk, end="", flush=True)
+                print("\n")
+            else:
+                print("\nAI: ", end="", flush=True)
+                response = agent.chat(USER_NAME, user_question, verbose=False)
+                print(response + "\n")
     
-    # Create agent
-    agent = create_memobase_agent(
-        mb_client=mb_client,
-        llm_api_key=os.getenv('llm_api_key'),
-        llm_base_url="https://api.openai.com/v1/",
-        model=MODEL,
-        max_profile_tokens=1000,
-    )
-    
-    # Test queries
-    queries = [
-        "What do you know about me?",
-        "What's my occupation?",
-        "Tell me about my work experience",
-    ]
-    
-    for query in queries:
-        print(f"User: {query}")
-        response = agent.chat(USER_NAME, query)
-        print(f"AI: {response}\n")
-    
-    # Flush at the end
-    print("💾 Flushing buffer...")
-    agent.flush(USER_NAME)
-    print("✅ Done!")
+    finally:
+        # Flush CHỈ khi kết thúc hoàn toàn phiên chat
+        try:
+            agent = create_memobase_agent(
+                mb_client=mb_client,
+                llm_api_key=os.getenv('llm_api_key'),
+                llm_base_url="https://api.openai.com/v1/",
+                model=MODEL,
+                max_profile_tokens=1000,
+            )
+            agent.flush(USER_NAME)
+        except Exception as e:
+            print(f"⚠️  Flush failed: {e}")
 
 
 if __name__ == "__main__":
     from rich import print as rprint
     from memobase.utils import string_to_uuid
-    demo_agent_interactive()
+    # demo_agent_single_query()
+    # rprint(u.event(topk = 1000))

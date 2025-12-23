@@ -21,21 +21,7 @@
     ],
     "created_at": "2025-12-23T12:56:19.809892"
   },
-  "20251223_125721": {
-    "title": "Hãy gợi ý vài món ăn hợp với tâm trạng tôi dạo gần...",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Hãy gợi ý vài món ăn hợp với tâm trạng tôi dạo gần đây"
-      },
-      {
-        "role": "assistant",
-        "content": "Hiếu thân mến, dạo gần đây có vẻ như bạn đang cảm thấy hơi trầm lắng, có thể do mùa đông lạnh giá và một chút áp lực từ công việc. Những món ăn quen thuộc như phở bò tái, bún riêu, và bún cá có thể là lựa chọn hoàn hảo để giúp bạn tìm lại cảm giác thoải mái và ấm áp. Đặc biệt, thưởng thức những món này tại khu phố cổ - nơi bạn thường ghé thăm - có thể mang lại cho bạn sự bình yên và thư giãn. Đừng quên rằng bạn luôn quan tâm đến chất lượng công việc của mình, điều đó sẽ là động lực giúp bạn vượt qua giai đoạn này."
-      }
-    ],
-    "created_at": "2025-12-23T12:57:21.538930"
-  },
-  "20251223_130000": {
+  "20251223_144805": {
     "title": "Xin chào ",
     "messages": [
       {
@@ -44,97 +30,9 @@
       },
       {
         "role": "assistant",
-        "content": "Chào anh Hiếu! Hôm nay anh có dự định gì thú vị không? Em có thể hỗ trợ gì cho anh không?"
-      },
-      {
-        "role": "user",
-        "content": "Không"
-      },
-      {
-        "role": "assistant",
-        "content": "Không sao đâu anh Hiếu, nếu anh cần gì hoặc chỉ muốn trò chuyện, em luôn sẵn sàng lắng nghe. Thời tiết này hơi lạnh, anh nhớ giữ ấm và chăm sóc sức khỏe nhé!"
+        "content": "Chào anh Hiếu! Hôm nay anh thế nào? Có điều gì em có thể giúp anh không?"
       }
     ],
-    "created_at": "2025-12-23T13:00:00.303717"
-  },
-  "20251223_130136": {
-    "title": "Xin chào",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Xin chào"
-      },
-      {
-        "role": "assistant",
-        "content": "Chào anh Hiếu! Hôm nay anh thế nào? Có điều gì đặc biệt mà em có thể giúp không?"
-      },
-      {
-        "role": "user",
-        "content": "Không có gì"
-      },
-      {
-        "role": "assistant",
-        "content": "Không sao đâu, nếu có điều gì cần hỗ trợ hoặc anh muốn chia sẻ, đừng ngần ngại nói với em nhé. Chúc anh Hiếu một ngày vui vẻ!"
-      }
-    ],
-    "created_at": "2025-12-23T13:01:36.826953"
-  },
-  "20251223_130320": {
-    "title": "Xin chào",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Xin chào"
-      },
-      {
-        "role": "assistant",
-        "content": "Chào Hiếu! Hôm nay bạn thế nào? Có gì mới không?"
-      }
-    ],
-    "created_at": "2025-12-23T13:03:20.428239"
-  },
-  "20251223_130440": {
-    "title": "Xin chào",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Xin chào"
-      },
-      {
-        "role": "assistant",
-        "content": "Chào anh Hiếu! Hôm nay anh có dự định gì đặc biệt không?"
-      },
-      {
-        "role": "user",
-        "content": "Không có"
-      },
-      {
-        "role": "assistant",
-        "content": "Nếu không có dự định gì đặc biệt, anh Hiếu có muốn dành thời gian thư giãn với một số hoạt động yêu thích không? Nghe nhạc EDM hoặc Synthwave, hoặc xem một bộ phim sci-fi có thể giúp anh thư giãn đấy. Hoặc anh có muốn tìm một quán café mới để thay đổi không khí không?"
-      },
-      {
-        "role": "user",
-        "content": "Không, tôi ổn"
-      },
-      {
-        "role": "assistant",
-        "content": "Hiểu rồi, nếu anh cần gì thêm hoặc muốn chia sẻ thêm điều gì, cứ nói với em nhé. Chúc anh Hiếu có một ngày thật thoải mái!"
-      }
-    ],
-    "created_at": "2025-12-23T13:04:40.381850"
-  },
-  "20251223_131655": {
-    "title": "Xin chào ",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Xin chào "
-      },
-      {
-        "role": "assistant",
-        "content": "Chào anh Hiếu! Hôm nay anh thế nào? Em có thể giúp gì cho anh không?"
-      }
-    ],
-    "created_at": "2025-12-23T13:16:55.233567"
+    "created_at": "2025-12-23T14:48:05.241238"
   }
 }
