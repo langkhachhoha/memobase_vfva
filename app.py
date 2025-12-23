@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from memobase import MemoBaseClient
 from memobase.utils import string_to_uuid
 from memobase.patch.Agent import create_memobase_agent
+from memobase.patch.Agent_pro import create_memobase_agent as create_memobase_agent_pro
 import time
 import json
 from datetime import datetime
@@ -441,17 +442,63 @@ st.markdown("""
         line-height: 1.6;
     }
     
-    /* Chat input - Fixed at bottom with animation */
+    /* Fixed bottom container for chat input */
     .stChatInputContainer {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
         background: linear-gradient(to top, #0A0E27 80%, transparent) !important;
         border-top: none !important;
         padding: 2rem 0 2rem 0 !important;
-        z-index: 100;
+        z-index: 100 !important;
         animation: slideUp 0.5s ease-out;
+    }
+    
+    /* Chat input wrapper */
+    .stChatInputContainer > div {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+    
+    /* Mode selector in sidebar styling */
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-radius: 12px !important;
+        color: #E3E3E3 !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        padding: 10px 16px !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    [data-testid="stSidebar"] [data-testid="stSelectbox"] > div > div:hover {
+        background: rgba(255, 255, 255, 0.12) !important;
+        border-color: rgba(138, 180, 248, 0.5) !important;
+    }
+    
+    /* Dropdown menu styling */
+    [data-baseweb="popover"] {
+        background: rgba(30, 30, 30, 0.95) !important;
+        backdrop-filter: blur(10px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-radius: 12px !important;
+    }
+    
+    [data-baseweb="popover"] ul {
+        background: transparent !important;
+    }
+    
+    [data-baseweb="popover"] li {
+        color: #E3E3E3 !important;
+        padding: 10px 16px !important;
+        font-size: 14px !important;
+    }
+    
+    [data-baseweb="popover"] li:hover {
+        background: rgba(138, 180, 248, 0.15) !important;
     }
     
     @keyframes slideUp {
@@ -657,18 +704,31 @@ if "profile_action" not in st.session_state:
     st.session_state.profile_action = None  # 'add' or 'update'
 if "selected_profile_id" not in st.session_state:
     st.session_state.selected_profile_id = None
+if "agent_mode" not in st.session_state:
+    st.session_state.agent_mode = "Pro Max"  # Default to Pro Max
 
 # Helper functions
-def create_agent(user_id):
-    """Create agent for user"""
-    return create_memobase_agent(
-        mb_client=mb_client,
-        llm_api_key=os.getenv('llm_api_key'),
-        llm_base_url="https://api.openai.com/v1/",
-        model=MODEL,
-        max_profile_tokens=1000,
-        temperature=0.7,
-    )
+def create_agent(user_id, mode="Pro Max"):
+    """Create agent for user based on mode"""
+    if mode == "Pro Max":
+        from memobase.patch.Agent_pro import create_memobase_agent as create_agent_pro_max
+        return create_agent_pro_max(
+            mb_client=mb_client,
+            llm_api_key=os.getenv('llm_api_key'),
+            llm_base_url="https://api.openai.com/v1/",
+            model=MODEL,
+            max_profile_tokens=1000,
+            temperature=0.7,
+        )
+    else:  # Pro mode
+        return create_memobase_agent(
+            mb_client=mb_client,
+            llm_api_key=os.getenv('llm_api_key'),
+            llm_base_url="https://api.openai.com/v1/",
+            model=MODEL,
+            max_profile_tokens=1000,
+            temperature=0.7,
+        )
 
 def load_chat_history():
     """Load chat history from file"""
@@ -929,12 +989,16 @@ if not st.session_state.chat_sessions:
 
 # Initialize agent if needed
 if st.session_state.agent is None:
-    st.session_state.agent = create_agent(st.session_state.user_id)
+    st.session_state.agent = create_agent(st.session_state.user_id, st.session_state.agent_mode)
 
 # Sidebar
 with st.sidebar:
     # New chat button
-    st.markdown("""
+    # Mode badge color
+    mode_color = "#FFD700" if st.session_state.agent_mode == "Pro Max" else "#8AB4F8"
+    mode_emoji = "✨" if st.session_state.agent_mode == "Pro Max" else "⚡"
+    
+    st.markdown(f"""
         <div style='padding: 1.5rem 0; text-align: center;'>
             <div style='font-size: 32px; font-weight: 700; 
                         margin-bottom: 0.5rem;
@@ -957,6 +1021,20 @@ with st.sidebar:
                         opacity: 0.8;'>
                 VinFast AI Assistant
             </div>
+            <div style='margin-top: 1rem;
+                        display: inline-block;
+                        background: linear-gradient(135deg, rgba(229, 228, 226, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+                        border: 1.5px solid {mode_color};
+                        border-radius: 20px;
+                        padding: 6px 16px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: {mode_color};
+                        letter-spacing: 1px;
+                        text-transform: uppercase;
+                        box-shadow: 0 0 20px rgba({mode_color}, 0.3);'>
+                {mode_emoji} {st.session_state.agent_mode}
+            </div>
             <div style='width: 60px; 
                         height: 3px; 
                         background: linear-gradient(90deg, transparent, #8AB4F8, transparent);
@@ -969,6 +1047,39 @@ with st.sidebar:
     if st.button("✨ Cuộc trò chuyện mới", use_container_width=True, key="new_chat"):
         create_new_session()
         st.rerun()
+
+    st.markdown("---")
+    
+    # Settings
+    st.markdown("<div class='settings-title'>Cài đặt</div>", unsafe_allow_html=True)
+    
+    # Mode selector in sidebar
+    st.markdown("<div style='margin-bottom: 12px; font-size: 12px; color: #C4C4C4; font-weight: 500;'>Chế độ AI</div>", unsafe_allow_html=True)
+    col1, _ = st.columns([1, 3]) 
+
+    st.markdown("""
+        <style>
+        /* Thu nhỏ khoảng cách và kích thước selectbox */
+        div[data-testid="stSelectbox"] > div {
+            min-height: 20px;
+            padding: 0px;
+        }
+        div[data-testid="stSelectbox"] label {
+            display: none;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+    col1, _ = st.columns([1, 2]) # Chỉ chiếm 1/5 độ rộng hàng
+
+    with col1:
+        new_mode = st.selectbox(
+            "Mode",
+            options=["Pro Max", "Pro"],
+            index=0 if st.session_state.get("agent_mode") == "Pro Max" else 1,
+            key="mode_selector",
+            label_visibility="collapsed"
+        )
     
     st.markdown("---")
     
@@ -1016,16 +1127,36 @@ with st.sidebar:
     else:
         st.caption("Chưa có lịch sử trò chuyện")
     
-    st.markdown("---")
+    # st.markdown("---")
     
-    # Settings
-    st.markdown("<div class='settings-title'>Cài đặt</div>", unsafe_allow_html=True)
+    # # Settings
+    # st.markdown("<div class='settings-title'>Cài đặt</div>", unsafe_allow_html=True)
+    
+    # # Mode selector in sidebar
+    # st.markdown("<div style='margin-bottom: 12px; font-size: 12px; color: #C4C4C4; font-weight: 500;'>Chế độ AI</div>", unsafe_allow_html=True)
+    # new_mode = st.selectbox(
+    #     "Mode",
+    #     options=["Pro Max", "Pro"],
+    #     index=0 if st.session_state.agent_mode == "Pro Max" else 1,
+    #     key="mode_selector",
+    #     label_visibility="collapsed"
+    # )
+    
+    # If mode changed, recreate agent and clear messages
+    if new_mode != st.session_state.agent_mode:
+        st.session_state.agent_mode = new_mode
+        st.session_state.agent = create_agent(st.session_state.user_id, new_mode)
+        st.session_state.messages = []
+        st.session_state.current_session_id = None
+        st.rerun()
+    
+    st.markdown("---")
     
     with st.expander("⚙️ Tùy chỉnh", expanded=False):
         new_user_id = st.text_input("User ID:", value=st.session_state.user_id)
         if new_user_id != st.session_state.user_id:
             st.session_state.user_id = new_user_id
-            st.session_state.agent = create_agent(new_user_id)
+            st.session_state.agent = create_agent(new_user_id, st.session_state.agent_mode)
             st.success("✅ Đã cập nhật User ID")
         
         new_assistant_name = st.text_input("Tên trợ lý:", value=st.session_state.assistant_name)
@@ -1048,21 +1179,111 @@ with st.sidebar:
 
 # Main content
 if not st.session_state.messages:
-    # Welcome screen with centered layout
     st.markdown("""
-        <div class='welcome-container'>
-            <div class='welcome-title'>💥 Xin chào Hiếu!</div>
-            <div class='welcome-subtitle'>Chúng ta nên bắt đầu từ đâu nhỉ?</div>
-        </div>
+    <style>
+        .welcome-container {
+            padding: 2.5rem;
+            border-radius: 24px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .welcome-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1.2rem;
+            display: inline-block;
+            filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.3));
+        }
+        
+        .welcome-title {
+            font-size: 3rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 0.8rem;
+            color: #FFFFFF;
+        }
+        
+        .welcome-subtitle {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 1.5rem;
+            font-weight: 400;
+        }
+        
+        /* Dòng chữ mới để lấp đầy khoảng trống */
+        .welcome-tagline {
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding-top: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tagline-dot {
+            height: 6px;
+            width: 6px;
+            background-color: #00ffa3; /* Điểm nhấn màu xanh robot */
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* Gradient riêng cho Pro Max */
+        .text-promax {
+            background: linear-gradient(90deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
     """, unsafe_allow_html=True)
+
+    # Nội dung dựa trên Mode
+    if st.session_state.get("agent_mode") == "Pro Max":
+        tagline = "Cá nhân hóa chuyên sâu • Kiến trúc Neural nâng cao"
+        title_class = "welcome-title text-promax"
+        icon = "✨"
+        subtitle = "Tôi là <b>ViVi Pro Max</b> — Phiên bản tối ưu nhất dành cho Hiếu."
+    else:
+        tagline = "Xử lý thông minh • Phản hồi tức thì"
+        title_class = "welcome-title"
+        icon = "👋"
+        subtitle = "Tôi là <b>ViVi Pro</b> — Trợ lý AI đồng hành cùng bạn."
+
+    welcome_html = f"""
+    <div class='welcome-container'>
+        <div class='welcome-icon'>{icon}</div>
+        <div class='{title_class}'>Xin chào Hiếu!</div>
+        <div class='welcome-subtitle'>{subtitle}</div>
+        <div class='welcome-tagline'>
+            <span class='tagline-dot'></span>
+            {tagline}
+        </div>
+    </div>
+    """
+
+    st.markdown(welcome_html, unsafe_allow_html=True)
     
-    # Suggestion cards in grid
-    suggestions = [
-        {"text": "Trời bắt đầu lạnh rồi, hôm nay ăn gì được nhỉ?"},
-        {"text": "Hãy cho list nhạc để qua được mùa đông cô đơn này"},
-        {"text": "Hãy cho tôi list những địa điểm đáng để đến trong năm 2026"},
-        {"text": "Làm sao để thiết kế AI Agent hiệu quả hơn?"},
-    ]
+    # Suggestion cards in grid - content changes based on mode
+    if st.session_state.agent_mode == "Pro Max":
+        suggestions = [
+            {"text": "Hôm nay ăn gì cho phù hợp với tâm trạng của tôi?"},
+            {"text": "Gợi ý playlist nhạc dựa trên sở thích của tôi"},
+            {"text": "Những địa điểm nào phù hợp với phong cách của tôi?"},
+            {"text": "Tư vấn lộ trình học tập cá nhân hóa cho tôi"},
+        ]
+    else:  # Pro mode
+        suggestions = [
+            {"text": "Trời bắt đầu lạnh rồi, hôm nay ăn gì được nhỉ?"},
+            {"text": "Hãy cho list nhạc để qua được mùa đông cô đơn này"},
+            {"text": "Hãy cho tôi list những địa điểm đáng để đến trong năm 2026"},
+            {"text": "Làm sao để thiết kế AI Agent hiệu quả hơn?"},
+        ]
     
     # Create suggestion grid
     st.markdown('<div class="suggestion-grid">', unsafe_allow_html=True)
@@ -1134,8 +1355,10 @@ else:
             st.markdown(message["content"])
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Chat input (always visible)
-if prompt := st.chat_input(f"Hỏi {st.session_state.assistant_name}..."):
+# Chat input
+prompt = st.chat_input(f"Hỏi {st.session_state.assistant_name}...")
+
+if prompt:
     # Create new session if needed
     if st.session_state.current_session_id is None:
         create_new_session()
