@@ -356,5 +356,7 @@ def demo_agent_single_query():
 if __name__ == "__main__":
     from rich import print as rprint
     from memobase.utils import string_to_uuid
-    # demo_agent_single_query()
-    # rprint(u.event(topk = 1000))
+    rprint(u.context(chats = [{"role": "user", "content": """I am hungry. 
+    I want to eat something. Can you help me find a restaurant?"""}],
+    max_token_size = 1500,
+    profile_event_ratio = 0.9))
