@@ -1164,13 +1164,13 @@ with st.sidebar:
     if new_mode != st.session_state.agent_mode:
         st.session_state.agent_mode = new_mode
         if new_mode in ("Pro", "Pro Max"):
+            st.session_state.agent = create_agent(st.session_state.user_id, new_mode)
             st.session_state.agent.flush(st.session_state.user_id)
             st.session_state.agent.refresh_profile(st.session_state.user_id)
-            st.session_state.agent = create_agent(st.session_state.user_id, new_mode)
         else:
             # ViVi: stateless per turn -> không giữ agent trong session
-            st.session_state.agent.flush(st.session_state.user_id)
-            st.session_state.agent.refresh_profile(st.session_state.user_id)
+            # st.session_state.agent.flush(st.session_state.user_id)
+            # st.session_state.agent.refresh_profile(st.session_state.user_id)
             st.session_state.agent = None
         st.session_state.messages = []
         st.session_state.current_session_id = None
